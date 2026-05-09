@@ -1,0 +1,1777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRIME OS — Personal Intelligence System</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+  :root {
+    --bg:       #060b18;
+    --bg2:      #0d1424;
+    --bg3:      #111827;
+    --border:   rgba(0, 212, 255, 0.12);
+    --cyan:     #00d4ff;
+    --cyan-dim: rgba(0, 212, 255, 0.35);
+    --cyan-glow:rgba(0, 212, 255, 0.08);
+    --blue:     #3b82f6;
+    --green:    #10b981;
+    --amber:    #f59e0b;
+    --red:      #ef4444;
+    --purple:   #8b5cf6;
+    --text:     #e2e8f0;
+    --text-dim: #64748b;
+    --text-muted:#1e293b;
+    --sidebar-w: 68px;
+    --topbar-h:  60px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    height: 100vh;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: var(--sidebar-w) 1fr;
+    grid-template-rows: var(--topbar-h) 1fr;
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    grid-row: 1 / 3;
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px 0 14px;
+    gap: 6px;
+    z-index: 100;
+  }
+
+  .sidebar-logo {
+    width: 38px; height: 38px;
+    background: linear-gradient(135deg, var(--cyan), #0088bb);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 18px;
+    box-shadow: 0 0 24px var(--cyan-dim);
+    cursor: pointer;
+  }
+
+  .nav-btn {
+    width: 44px; height: 44px;
+    border-radius: 11px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .nav-btn:hover { background: var(--cyan-glow); color: var(--cyan); border-color: var(--border); }
+  .nav-btn.active {
+    background: var(--cyan-glow);
+    color: var(--cyan);
+    border-color: var(--border);
+  }
+  .nav-btn.active::before {
+    content: '';
+    position: absolute;
+    left: -1px; top: 50%;
+    transform: translateY(-50%);
+    width: 3px; height: 22px;
+    background: var(--cyan);
+    border-radius: 0 2px 2px 0;
+  }
+
+  .nav-tip {
+    position: absolute;
+    left: 54px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 12px;
+    border-radius: 7px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
+    z-index: 999;
+  }
+  .nav-btn:hover .nav-tip { opacity: 1; }
+
+  .sidebar-spacer { flex: 1; }
+
+  /* ── Top bar ── */
+  .topbar {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 22px;
+    gap: 14px;
+    z-index: 50;
+  }
+
+  .topbar-brand { font-size: 11px; color: var(--text-dim); letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; }
+  .topbar-sep { color: var(--text-muted); }
+  .topbar-path { color: var(--cyan); font-size: 13px; font-weight: 600; }
+  .topbar-spacer { flex: 1; }
+
+  .voice-pill {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    padding: 7px 16px;
+    cursor: pointer;
+    transition: all 0.25s;
+  }
+  .voice-pill:hover { border-color: var(--cyan-dim); box-shadow: 0 0 14px var(--cyan-glow); }
+
+  .mini-wave { display: flex; align-items: center; gap: 2px; height: 14px; }
+  .mini-wave span {
+    display: block; width: 2px;
+    background: var(--cyan);
+    border-radius: 1px;
+    animation: mwave 1.3s ease-in-out infinite;
+  }
+  .mini-wave span:nth-child(1){height:4px; animation-delay:0s}
+  .mini-wave span:nth-child(2){height:9px; animation-delay:0.1s}
+  .mini-wave span:nth-child(3){height:13px;animation-delay:0.2s}
+  .mini-wave span:nth-child(4){height:9px; animation-delay:0.3s}
+  .mini-wave span:nth-child(5){height:4px; animation-delay:0.4s}
+  @keyframes mwave { 0%,100%{transform:scaleY(1)} 50%{transform:scaleY(1.8)} }
+
+  .voice-pill-label { font-size: 12px; color: var(--text-dim); }
+
+  .topbar-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    animation: pdot 2.5s ease-in-out infinite;
+  }
+  @keyframes pdot { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .topbar-clock { font-size: 13px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+  /* ── Main ── */
+  .main { overflow: hidden; position: relative; }
+
+  .view {
+    position: absolute; inset: 0;
+    overflow-y: auto;
+    padding: 22px;
+    opacity: 0; pointer-events: none;
+    transform: translateY(6px);
+    transition: opacity 0.28s, transform 0.28s;
+  }
+  .view.active { opacity: 1; pointer-events: all; transform: translateY(0); }
+
+  /* Subtle grid bg */
+  .view::after {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.018) 1px, transparent 1px);
+    background-size: 44px 44px;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cyan-dim), transparent);
+  }
+  .card-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 14px; }
+
+  /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     DASHBOARD
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+  .dash-grid {
+    display: grid;
+    grid-template-columns: 220px 1fr 240px;
+    grid-template-rows: auto auto;
+    gap: 14px;
+    height: calc(100vh - var(--topbar-h) - 44px);
+  }
+
+  /* Clock card */
+  .clock-card { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+  .clock-time {
+    font-size: 46px; font-weight: 200;
+    color: var(--cyan);
+    letter-spacing: -2px;
+    text-shadow: 0 0 36px var(--cyan-dim);
+    font-variant-numeric: tabular-nums;
+    line-height: 1; margin-bottom: 6px;
+  }
+  .clock-date { font-size: 13px; color: var(--text-dim); margin-bottom: 22px; }
+
+  .sys-stats { display: flex; flex-direction: column; gap: 9px; width: 100%; }
+  .stat-row { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+  .stat-label { color: var(--text-dim); flex: 1; }
+  .stat-bar { flex: 2; height: 3px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+  .stat-fill { height: 100%; border-radius: 2px; }
+  .stat-val { color: var(--text); font-variant-numeric: tabular-nums; width: 28px; text-align: right; }
+
+  /* Focus card */
+  .focus-card { grid-column: 2; }
+  .greeting { font-size: 21px; font-weight: 600; margin-bottom: 4px; }
+  .greeting em { font-style: normal; color: var(--cyan); }
+  .subline { font-size: 12px; color: var(--text-dim); margin-bottom: 18px; }
+
+  .task-list { display: flex; flex-direction: column; gap: 9px; }
+  .task-item {
+    display: flex; align-items: flex-start; gap: 11px;
+    padding: 11px 13px;
+    background: var(--bg3);
+    border: 1px solid var(--text-muted);
+    border-radius: 9px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .task-item:hover { border-color: var(--cyan-dim); }
+  .task-check {
+    width: 17px; height: 17px; border-radius: 50%;
+    border: 2px solid var(--text-dim);
+    flex-shrink: 0; margin-top: 1px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .task-item.done .task-check { background: var(--green); border-color: var(--green); }
+  .task-item.done .task-text { text-decoration: line-through; color: var(--text-dim); }
+  .task-text { font-size: 13px; flex: 1; line-height: 1.4; }
+  .task-tag { font-size: 10px; padding: 2px 8px; border-radius: 20px; background: var(--cyan-glow); color: var(--cyan); border: 1px solid var(--cyan-dim); flex-shrink: 0; }
+
+  /* Activity */
+  .activity-feed { display: flex; flex-direction: column; gap: 13px; }
+  .activity-item { display: flex; gap: 10px; font-size: 12px; }
+  .activity-icon { width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+  .activity-title { color: var(--text); margin-bottom: 2px; line-height: 1.4; }
+  .activity-time { color: var(--text-dim); font-size: 10px; }
+
+  /* Project strip */
+  .proj-strip { grid-column: 1 / 4; display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+  .proj-mini {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 11px; padding: 15px;
+    cursor: pointer; transition: all 0.22s; position: relative; overflow: hidden;
+  }
+  .proj-mini:hover { border-color: var(--cyan-dim); transform: translateY(-2px); box-shadow: 0 10px 28px rgba(0,0,0,.35); }
+  .proj-mini-accent { position: absolute; top: 0; left: 0; bottom: 0; width: 3px; border-radius: 3px 0 0 3px; }
+  .proj-mini-name { font-size: 13px; font-weight: 600; margin-bottom: 4px; padding-left: 4px; }
+  .proj-mini-desc { font-size: 11px; color: var(--text-dim); margin-bottom: 12px; padding-left: 4px; line-height: 1.4; }
+  .prog-bar { height: 3px; background: var(--bg3); border-radius: 2px; overflow: hidden; margin-bottom: 6px; }
+  .prog-fill { height: 100%; border-radius: 2px; }
+  .proj-mini-footer { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-dim); padding-left: 4px; }
+
+  /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     PROJECTS HUB
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+  .section-title { font-size: 19px; font-weight: 600; margin-bottom: 18px; display: flex; align-items: center; gap: 12px; }
+  .section-title small { font-size: 12px; color: var(--text-dim); font-weight: 400; }
+
+  .projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px,1fr)); gap: 14px; }
+
+  .proj-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 14px; padding: 18px;
+    cursor: pointer; transition: all 0.22s; position: relative; overflow: hidden;
+  }
+  .proj-card:hover { border-color: var(--cyan-dim); transform: translateY(-3px); box-shadow: 0 14px 36px rgba(0,0,0,.4); }
+  .proj-card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
+  .proj-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+  .status-pill { font-size: 10px; padding: 3px 10px; border-radius: 20px; }
+  .s-active   { background: rgba(16,185,129,.1); color: var(--green); border: 1px solid rgba(16,185,129,.3); }
+  .s-planning { background: rgba(245,158,11,.1);  color: var(--amber); border: 1px solid rgba(245,158,11,.3); }
+  .s-hold     { background: rgba(100,116,139,.1); color: var(--text-dim); border: 1px solid rgba(100,116,139,.3); }
+  .proj-name { font-size: 15px; font-weight: 600; margin-bottom: 5px; }
+  .proj-desc { font-size: 12px; color: var(--text-dim); margin-bottom: 14px; line-height: 1.5; }
+  .proj-meta { display: flex; gap: 14px; font-size: 11px; color: var(--text-dim); }
+
+  /* Detail */
+  .proj-detail { display: none; }
+  .proj-detail.visible { display: block; }
+
+  .proj-header { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+  .back-btn {
+    background: var(--bg2); border: 1px solid var(--border);
+    color: var(--text-dim); padding: 7px 15px; border-radius: 8px;
+    cursor: pointer; font-size: 13px; transition: all 0.2s;
+  }
+  .back-btn:hover { color: var(--cyan); border-color: var(--cyan-dim); }
+
+  .proj-tabs {
+    display: flex; gap: 3px;
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 11px; padding: 4px; margin-bottom: 22px;
+  }
+  .tab-btn {
+    padding: 7px 18px; border-radius: 8px; border: 1px solid transparent;
+    background: transparent; color: var(--text-dim); font-size: 13px; cursor: pointer; transition: all 0.2s;
+  }
+  .tab-btn.active { background: var(--cyan-glow); color: var(--cyan); border-color: var(--border); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Timeline */
+  .timeline { position: relative; padding-left: 30px; }
+  .timeline::before {
+    content: ''; position: absolute;
+    left: 10px; top: 10px; bottom: 0; width: 2px;
+    background: linear-gradient(to bottom, var(--cyan), transparent);
+  }
+  .tl-item { position: relative; margin-bottom: 22px; }
+  .tl-dot {
+    position: absolute; left: -24px; top: 7px;
+    width: 11px; height: 11px; border-radius: 50%;
+    border: 2px solid var(--cyan); background: var(--bg);
+    box-shadow: 0 0 8px var(--cyan-dim);
+  }
+  .tl-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 11px; padding: 15px; }
+  .tl-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .tl-type { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; padding: 2px 8px; border-radius: 4px; }
+  .t-adr       { background: rgba(59,130,246,.1);  color: var(--blue); }
+  .t-decision  { background: rgba(0,212,255,.1);   color: var(--cyan); }
+  .t-milestone { background: rgba(16,185,129,.1);  color: var(--green); }
+  .t-note      { background: rgba(100,116,139,.1); color: var(--text-dim); }
+  .tl-date { font-size: 11px; color: var(--text-dim); }
+  .tl-title { font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+  .tl-body { font-size: 12px; color: var(--text-dim); line-height: 1.6; }
+  .alts { margin-top: 11px; padding-top: 11px; border-top: 1px solid var(--text-muted); }
+  .alts-label { font-size: 10px; text-transform: uppercase; letter-spacing:.05em; color: var(--text-dim); margin-bottom: 7px; }
+  .alt-item { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--text-dim); margin-bottom: 3px; }
+  .alt-x { color: var(--red); }
+
+  /* Todos */
+  .todo-section { margin-bottom: 22px; }
+  .todo-section-lbl { font-size: 10px; text-transform: uppercase; letter-spacing:.08em; color: var(--text-dim); margin-bottom: 9px; }
+  .todo-item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 12px; background: var(--bg2);
+    border: 1px solid var(--border); border-radius: 8px;
+    margin-bottom: 5px; cursor: pointer; transition: all 0.2s;
+  }
+  .todo-item:hover { border-color: var(--cyan-dim); }
+  .todo-cb {
+    width: 15px; height: 15px; border-radius: 4px;
+    border: 2px solid var(--text-dim); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+  }
+  .todo-item.done .todo-cb { background: var(--green); border-color: var(--green); }
+  .todo-item.done .todo-lbl { text-decoration: line-through; color: var(--text-dim); }
+  .todo-lbl { font-size: 13px; flex: 1; }
+  .prio { font-size: 10px; padding: 2px 7px; border-radius: 4px; }
+  .p-high { background: rgba(239,68,68,.1); color: var(--red); }
+  .p-med  { background: rgba(245,158,11,.1); color: var(--amber); }
+  .p-low  { background: rgba(100,116,139,.1); color: var(--text-dim); }
+
+  /* Docs */
+  .docs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 11px; }
+  .doc-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 11px; padding: 15px;
+    cursor: pointer; transition: all 0.2s; text-align: center;
+  }
+  .doc-card:hover { border-color: var(--cyan-dim); transform: translateY(-2px); }
+  .doc-icon { font-size: 30px; margin-bottom: 9px; }
+  .doc-name { font-size: 12px; font-weight: 500; margin-bottom: 4px; }
+  .doc-meta { font-size: 10px; color: var(--text-dim); }
+
+  /* Concepts */
+  .concept-item {
+    margin-bottom: 13px; padding: 14px;
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+  }
+  .concept-name { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 5px; }
+  .concept-desc { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+
+  /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     VOICE / CHAT
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+  .chat-layout { display: flex; flex-direction: column; height: calc(100vh - var(--topbar-h) - 44px); }
+
+  .wave-area {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 28px 24px 20px; gap: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .wave-status { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); }
+
+  .wave-big { display: flex; align-items: center; gap: 3px; height: 64px; }
+  .wave-big span {
+    display: block; width: 4px; background: var(--cyan);
+    border-radius: 2px; animation: wbig 1.4s ease-in-out infinite;
+  }
+  @keyframes wbig { 0%,100%{transform:scaleY(0.25)} 50%{transform:scaleY(1)} }
+  .wave-big.idle span { animation: none; transform: scaleY(0.18); opacity: 0.35; }
+
+  .chat-msgs { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 16px; }
+
+  .msg { display: flex; gap: 11px; max-width: 78%; }
+  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+  .msg-av {
+    width: 30px; height: 30px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; flex-shrink: 0;
+  }
+  .msg.ai .msg-av   { background: var(--cyan-glow); border: 1px solid var(--cyan-dim); color: var(--cyan); }
+  .msg.user .msg-av { background: rgba(59,130,246,.1); border: 1px solid rgba(59,130,246,.3); color: var(--blue); }
+  .msg-bub { padding: 11px 15px; font-size: 13px; line-height: 1.65; border-radius: 14px; }
+  .msg.ai   .msg-bub { background: var(--bg2); border: 1px solid var(--border); border-radius: 4px 14px 14px 14px; }
+  .msg.user .msg-bub { background: rgba(59,130,246,.08); border: 1px solid rgba(59,130,246,.25); border-radius: 14px 4px 14px 14px; }
+
+  .typing-dot { display: inline-block; width: 6px; height: 6px; background: var(--cyan); border-radius: 50%; margin: 0 1px; animation: tdot 1.2s ease-in-out infinite; }
+  .typing-dot:nth-child(2){animation-delay:.2s} .typing-dot:nth-child(3){animation-delay:.4s}
+  @keyframes tdot { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-5px)} }
+
+  .chat-input-row {
+    padding: 14px 18px; border-top: 1px solid var(--border);
+    display: flex; gap: 10px; align-items: center;
+  }
+  .mic-btn {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: var(--cyan-glow); border: 1px solid var(--cyan-dim);
+    color: var(--cyan); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+  }
+  .mic-btn:hover { background: var(--cyan); color: #000; box-shadow: 0 0 18px var(--cyan-dim); }
+  .mic-btn.recording { background: var(--red); border-color: var(--red); color: #fff; animation: rpulse 1s ease-in-out infinite; }
+  @keyframes rpulse { 0%,100%{box-shadow: 0 0 0 0 rgba(239,68,68,.4)} 50%{box-shadow: 0 0 0 10px rgba(239,68,68,0)} }
+
+  .chat-in {
+    flex: 1; background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 11px; padding: 11px 14px;
+    color: var(--text); font-size: 13px; outline: none; transition: border-color 0.2s;
+    font-family: inherit;
+  }
+  .chat-in:focus { border-color: var(--cyan-dim); }
+  .chat-in::placeholder { color: var(--text-dim); }
+
+  .send-btn {
+    width: 42px; height: 42px; border-radius: 11px;
+    background: var(--cyan); border: none; color: #000;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; transition: all 0.2s;
+  }
+  .send-btn:hover { box-shadow: 0 0 18px var(--cyan-dim); transform: scale(1.05); }
+
+  /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     KNOWLEDGE GRAPH
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+  .graph-layout {
+    display: grid; grid-template-columns: 1fr 256px; gap: 14px;
+    height: calc(100vh - var(--topbar-h) - 44px);
+  }
+  .graph-canvas {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 14px; overflow: hidden; position: relative;
+  }
+  .graph-canvas svg { width: 100%; height: 100%; }
+  .graph-sidebar { display: flex; flex-direction: column; gap: 12px; }
+  .legend { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 15px; }
+  .legend-title { font-size: 10px; text-transform: uppercase; letter-spacing:.08em; color: var(--text-dim); margin-bottom: 11px; }
+  .legend-item { display: flex; align-items: center; gap: 9px; font-size: 12px; margin-bottom: 7px; color: var(--text-dim); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .graph-hint { font-size: 11px; color: var(--text-dim); padding: 0 2px; }
+  .node-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 15px; flex: 1; }
+  .node-placeholder { color: var(--text-dim); font-size: 12px; text-align: center; padding-top: 36px; line-height: 1.6; }
+
+  /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     AGENTS
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+  .agents-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .agents-stats {
+    display: flex; gap: 20px; font-size: 12px; color: var(--text-dim);
+  }
+  .agents-stat { display: flex; align-items: center; gap: 6px; }
+  .agents-stat-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+  .spawn-btn {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--cyan-glow); border: 1px solid var(--cyan-dim);
+    color: var(--cyan); padding: 8px 18px; border-radius: 9px;
+    cursor: pointer; font-size: 13px; transition: all 0.2s;
+  }
+  .spawn-btn:hover { background: var(--cyan); color: #000; box-shadow: 0 0 18px var(--cyan-dim); }
+
+  .agents-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px,1fr)); gap: 14px; }
+
+  .agent-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 14px; padding: 18px;
+    position: relative; overflow: hidden;
+    transition: all 0.22s; cursor: pointer;
+  }
+  .agent-card:hover { border-color: var(--cyan-dim); transform: translateY(-2px); box-shadow: 0 12px 30px rgba(0,0,0,.35); }
+  .agent-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--agent-color, var(--cyan-dim)), transparent);
+  }
+
+  .agent-card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
+  .agent-avatar {
+    width: 42px; height: 42px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; flex-shrink: 0;
+  }
+  .agent-status-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .agent-status {
+    font-size: 10px; padding: 3px 10px; border-radius: 20px;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .as-running  { background: rgba(0,212,255,.1); color: var(--cyan); border: 1px solid rgba(0,212,255,.3); }
+  .as-idle     { background: rgba(100,116,139,.1); color: var(--text-dim); border: 1px solid rgba(100,116,139,.3); }
+  .as-done     { background: rgba(16,185,129,.1); color: var(--green); border: 1px solid rgba(16,185,129,.3); }
+  .as-error    { background: rgba(239,68,68,.1); color: var(--red); border: 1px solid rgba(239,68,68,.3); }
+  .as-queued   { background: rgba(245,158,11,.1); color: var(--amber); border: 1px solid rgba(245,158,11,.3); }
+  .status-pulse { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: spulse 1.5s ease-in-out infinite; }
+  @keyframes spulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  .agent-uptime { font-size: 10px; color: var(--text-dim); }
+
+  .agent-name { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .agent-role { font-size: 11px; color: var(--text-dim); margin-bottom: 14px; }
+
+  .agent-task-label { font-size: 10px; text-transform: uppercase; letter-spacing:.08em; color: var(--text-dim); margin-bottom: 6px; }
+  .agent-task-text {
+    font-size: 12px; color: var(--text); line-height: 1.5;
+    padding: 10px 12px; background: var(--bg3);
+    border-left: 2px solid var(--agent-color, var(--cyan));
+    border-radius: 0 6px 6px 0; margin-bottom: 14px;
+  }
+
+  .agent-progress-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .agent-progress-bar { flex: 1; height: 3px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+  .agent-progress-fill { height: 100%; border-radius: 2px; transition: width 1s ease; }
+  .agent-progress-pct { font-size: 11px; color: var(--text-dim); width: 28px; text-align: right; }
+
+  .agent-log {
+    font-size: 10px; font-family: 'SF Mono', 'Fira Code', monospace;
+    color: var(--text-dim); line-height: 1.7;
+    max-height: 64px; overflow: hidden; position: relative;
+  }
+  .agent-log::after {
+    content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 20px;
+    background: linear-gradient(transparent, var(--bg2));
+  }
+  .agent-log-line { display: flex; gap: 8px; }
+  .log-time { color: var(--text-muted); opacity: .6; flex-shrink: 0; }
+  .log-ok   { color: var(--green); }
+  .log-warn { color: var(--amber); }
+  .log-info { color: var(--cyan); }
+
+  .agent-actions { display: flex; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .agent-btn {
+    flex: 1; padding: 7px; border-radius: 7px; border: 1px solid var(--border);
+    background: transparent; color: var(--text-dim); font-size: 11px;
+    cursor: pointer; transition: all 0.2s; text-align: center;
+  }
+  .agent-btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
+  .agent-btn.primary { background: var(--cyan-glow); border-color: var(--cyan-dim); color: var(--cyan); }
+
+  /* Queue / completed section */
+  .agents-section-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing:.08em;
+    color: var(--text-dim); margin: 22px 0 12px;
+  }
+  .queue-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 14px; background: var(--bg2);
+    border: 1px solid var(--border); border-radius: 9px;
+    margin-bottom: 6px; font-size: 12px;
+  }
+  .queue-emoji { font-size: 16px; }
+  .queue-text { flex: 1; color: var(--text-dim); }
+  .queue-badge { font-size: 10px; padding: 2px 8px; border-radius: 20px; }
+
+  /* ── scrollbar ── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ═══ SIDEBAR ═══ -->
+<nav class="sidebar">
+  <div class="sidebar-logo" onclick="showView('dashboard', document.querySelectorAll('.nav-btn')[0])">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5">
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+    </svg>
+  </div>
+
+  <button class="nav-btn active" onclick="showView('dashboard',this)">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+    </svg>
+    <span class="nav-tip">Dashboard</span>
+  </button>
+
+  <button class="nav-btn" onclick="showView('projects',this)">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+    </svg>
+    <span class="nav-tip">Projects</span>
+  </button>
+
+  <button class="nav-btn" onclick="showView('chat',this)">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    </svg>
+    <span class="nav-tip">Assistant</span>
+  </button>
+
+  <button class="nav-btn" onclick="showView('graph',this)">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+    </svg>
+    <span class="nav-tip">Knowledge Graph</span>
+  </button>
+
+  <button class="nav-btn" onclick="showView('agents',this)">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="2" y="3" width="20" height="14" rx="2"/>
+      <path d="M8 21h8M12 17v4"/>
+      <circle cx="8.5" cy="10" r="1.5" fill="currentColor" stroke="none"/>
+      <circle cx="15.5" cy="10" r="1.5" fill="currentColor" stroke="none"/>
+      <path d="M9.5 13.5c.83.67 1.17.67 2 .67s1.17 0 2-.67" stroke-linecap="round"/>
+    </svg>
+    <span class="nav-tip">Agents</span>
+  </button>
+
+  <div class="sidebar-spacer"></div>
+
+  <button class="nav-btn">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="8" r="4"/>
+      <path d="M6 20v-1a6 6 0 0 1 12 0v1"/>
+    </svg>
+    <span class="nav-tip">Mirek</span>
+  </button>
+</nav>
+
+<!-- ═══ TOPBAR ═══ -->
+<header class="topbar">
+  <div class="topbar-brand">PRIME OS</div>
+  <div class="topbar-sep">›</div>
+  <div class="topbar-path" id="topbar-path">Dashboard</div>
+  <div class="topbar-spacer"></div>
+  <div class="voice-pill" onclick="showView('chat', document.querySelectorAll('.nav-btn')[2])">
+    <div class="mini-wave"><span/><span/><span/><span/><span/></div>
+    <span class="voice-pill-label">Ask PRIME</span>
+  </div>
+  <div class="topbar-dot"></div>
+  <div class="topbar-clock" id="topbar-clock">—</div>
+</header>
+
+<!-- ═══ MAIN ═══ -->
+<main class="main">
+
+  <!-- ━━━ DASHBOARD ━━━ -->
+  <section class="view active" id="view-dashboard">
+    <div class="dash-grid">
+
+      <!-- Clock -->
+      <div class="card clock-card">
+        <div class="card-label">System Status</div>
+        <div class="clock-time" id="main-clock">—</div>
+        <div class="clock-date" id="main-date">—</div>
+        <div class="sys-stats">
+          <div class="stat-row">
+            <span class="stat-label">Projects</span>
+            <div class="stat-bar"><div class="stat-fill" style="width:75%;background:var(--cyan)"></div></div>
+            <span class="stat-val">3</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Tasks done</span>
+            <div class="stat-bar"><div class="stat-fill" style="width:40%;background:var(--green)"></div></div>
+            <span class="stat-val">8/20</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Decisions</span>
+            <div class="stat-bar"><div class="stat-fill" style="width:60%;background:var(--blue)"></div></div>
+            <span class="stat-val">12</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Docs linked</span>
+            <div class="stat-bar"><div class="stat-fill" style="width:50%;background:var(--amber)"></div></div>
+            <span class="stat-val">24</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Focus -->
+      <div class="card focus-card">
+        <div class="greeting">Good morning, <em>Mirek</em> ⚡</div>
+        <div class="subline">3 priority tasks · 2 active projects · 1 pending decision</div>
+        <div class="task-list">
+          <div class="task-item done" onclick="toggleTask(this)">
+            <div class="task-check"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5"><polyline points="20 6 9 17 4 12"/></svg></div>
+            <span class="task-text">Define data model for Personal Assistant</span>
+            <span class="task-tag">AI Project</span>
+          </div>
+          <div class="task-item" onclick="toggleTask(this)">
+            <div class="task-check"></div>
+            <span class="task-text">Design knowledge graph schema — RDF vs property graph</span>
+            <span class="task-tag">AI Project</span>
+          </div>
+          <div class="task-item" onclick="toggleTask(this)">
+            <div class="task-check"></div>
+            <span class="task-text">Review contractor proposals for bathroom renovation</span>
+            <span class="task-tag">Home</span>
+          </div>
+          <div class="task-item" onclick="toggleTask(this)">
+            <div class="task-check"></div>
+            <span class="task-text">Execute VXUS purchase — Q2 rebalancing</span>
+            <span class="task-tag">Finance</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Activity -->
+      <div class="card">
+        <div class="card-label">Recent Activity</div>
+        <div class="activity-feed">
+          <div class="activity-item">
+            <div class="activity-icon" style="background:rgba(0,212,255,.08)">🏗️</div>
+            <div>
+              <div class="activity-title">ADR-002: HTML-first prototype approach chosen</div>
+              <div class="activity-time">2 h ago · AI Project</div>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-icon" style="background:rgba(16,185,129,.08)">✅</div>
+            <div>
+              <div class="activity-title">Task completed: Initial wireframes</div>
+              <div class="activity-time">Yesterday · AI Project</div>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-icon" style="background:rgba(245,158,11,.08)">🏠</div>
+            <div>
+              <div class="activity-title">Doc added: BuildRight Co. quote</div>
+              <div class="activity-time">2 days ago · Home</div>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-icon" style="background:rgba(59,130,246,.08)">📊</div>
+            <div>
+              <div class="activity-title">Decision: Shift 10% to VXUS (intl ETF)</div>
+              <div class="activity-time">3 days ago · Portfolio</div>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-icon" style="background:rgba(139,92,246,.08)">💡</div>
+            <div>
+              <div class="activity-title">Concept added: Voice-first interaction layer</div>
+              <div class="activity-time">4 days ago · AI Project</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Project strip -->
+      <div class="proj-strip">
+        <div class="proj-mini" onclick="openProject(0)">
+          <div class="proj-mini-accent" style="background:var(--cyan)"></div>
+          <div class="proj-mini-name">🤖 Personal AI OS</div>
+          <div class="proj-mini-desc">Prime-style assistant with knowledge graph, voice & decision tracking</div>
+          <div class="prog-bar"><div class="prog-fill" style="width:25%;background:var(--cyan)"></div></div>
+          <div class="proj-mini-footer"><span>Active</span><span>25% complete</span></div>
+        </div>
+        <div class="proj-mini" onclick="openProject(1)">
+          <div class="proj-mini-accent" style="background:var(--amber)"></div>
+          <div class="proj-mini-name">🏠 Home Renovation</div>
+          <div class="proj-mini-desc">Bathroom & kitchen — contractor selection, permits, Q3 start</div>
+          <div class="prog-bar"><div class="prog-fill" style="width:40%;background:var(--amber)"></div></div>
+          <div class="proj-mini-footer"><span>Active</span><span>40% complete</span></div>
+        </div>
+        <div class="proj-mini" onclick="openProject(2)">
+          <div class="proj-mini-accent" style="background:var(--green)"></div>
+          <div class="proj-mini-name">📊 Investment Portfolio</div>
+          <div class="proj-mini-desc">Q2 2026 rebalancing — ETF allocation & benchmark tracking</div>
+          <div class="prog-bar"><div class="prog-fill" style="width:60%;background:var(--green)"></div></div>
+          <div class="proj-mini-footer"><span>Planning</span><span>60% complete</span></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ━━━ PROJECTS ━━━ -->
+  <section class="view" id="view-projects">
+
+    <div id="proj-list">
+      <div class="section-title">Projects <small>3 active workspaces</small></div>
+      <div class="projects-grid">
+
+        <div class="proj-card" onclick="openProject(0)">
+          <div class="proj-card-top">
+            <div class="proj-icon" style="background:rgba(0,212,255,.08)">🤖</div>
+            <div class="status-pill s-active">Active</div>
+          </div>
+          <div class="proj-name">Personal AI OS</div>
+          <div class="proj-desc">Prime-style personal assistant — decision tracking, knowledge graph, voice interface, all local-first.</div>
+          <div class="prog-bar"><div class="prog-fill" style="width:25%;background:var(--cyan)"></div></div>
+          <div class="proj-meta">
+            <span>📋 8 todos</span>
+            <span>🏛 4 decisions</span>
+            <span>📄 6 docs</span>
+          </div>
+        </div>
+
+        <div class="proj-card" onclick="openProject(1)">
+          <div class="proj-card-top">
+            <div class="proj-icon" style="background:rgba(245,158,11,.08)">🏠</div>
+            <div class="status-pill s-active">Active</div>
+          </div>
+          <div class="proj-name">Home Renovation 2026</div>
+          <div class="proj-desc">Bathroom & kitchen renovation. Contractor selection in progress, permits submitted, Q3 start date locked.</div>
+          <div class="prog-bar"><div class="prog-fill" style="width:40%;background:var(--amber)"></div></div>
+          <div class="proj-meta">
+            <span>📋 12 todos</span>
+            <span>🏛 3 decisions</span>
+            <span>📄 11 docs</span>
+          </div>
+        </div>
+
+        <div class="proj-card" onclick="openProject(2)">
+          <div class="proj-card-top">
+            <div class="proj-icon" style="background:rgba(16,185,129,.08)">📊</div>
+            <div class="status-pill s-planning">Planning</div>
+          </div>
+          <div class="proj-name">Investment Portfolio Q2</div>
+          <div class="proj-desc">Q2 2026 rebalancing. International ETF shift, auto-rebalance threshold set, tax-loss review pending.</div>
+          <div class="prog-bar"><div class="prog-fill" style="width:60%;background:var(--green)"></div></div>
+          <div class="proj-meta">
+            <span>📋 5 todos</span>
+            <span>🏛 5 decisions</span>
+            <span>📄 7 docs</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Detail panel -->
+    <div id="proj-detail" class="proj-detail">
+      <div class="proj-header">
+        <button class="back-btn" onclick="closeProject()">← Projects</button>
+        <span style="font-size:26px" id="d-icon">🤖</span>
+        <div>
+          <div style="font-size:17px;font-weight:600" id="d-name">—</div>
+          <div style="font-size:12px;color:var(--text-dim)" id="d-desc">—</div>
+        </div>
+      </div>
+
+      <div class="proj-tabs">
+        <button class="tab-btn active" onclick="showTab('timeline',this)">📅 Timeline</button>
+        <button class="tab-btn" onclick="showTab('todos',this)">✅ Todos</button>
+        <button class="tab-btn" onclick="showTab('documents',this)">📄 Documents</button>
+        <button class="tab-btn" onclick="showTab('concepts',this)">💡 Concepts</button>
+      </div>
+
+      <div class="tab-content active" id="tab-timeline"><div class="timeline" id="tl-content"></div></div>
+      <div class="tab-content" id="tab-todos"><div id="todos-content"></div></div>
+      <div class="tab-content" id="tab-documents"><div class="docs-grid" id="docs-content"></div></div>
+      <div class="tab-content" id="tab-concepts"><div id="concepts-content"></div></div>
+    </div>
+
+  </section>
+
+  <!-- ━━━ CHAT / VOICE ━━━ -->
+  <section class="view" id="view-chat">
+    <div class="chat-layout">
+
+      <div class="wave-area">
+        <div class="wave-status" id="wave-status">Idle — click mic or type below</div>
+        <div class="wave-big idle" id="wave-big"></div>
+      </div>
+
+      <div class="chat-msgs" id="chat-msgs">
+        <div class="msg ai">
+          <div class="msg-av">⚡</div>
+          <div class="msg-bub">Hello, Mirek. I'm PRIME — your personal intelligence system. I can help you manage projects, track decisions, surface documents, and much more. What would you like to work on today?</div>
+        </div>
+        <div class="msg user">
+          <div class="msg-av">M</div>
+          <div class="msg-bub">What's the status of my Personal AI OS project?</div>
+        </div>
+        <div class="msg ai">
+          <div class="msg-av">⚡</div>
+          <div class="msg-bub"><strong>Personal AI OS</strong> is 25% complete and active. You have 8 open todos and 4 recorded decisions.<br><br>Most recently: <em>ADR-002 — HTML-first prototype chosen</em> (2 hours ago). Your next high-priority task is designing the knowledge graph schema (RDF vs property graph).<br><br>Shall I open the decision timeline or your todo list?</div>
+        </div>
+      </div>
+
+      <div class="chat-input-row">
+        <button class="mic-btn" id="mic-btn" onclick="toggleMic()">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/>
+          </svg>
+        </button>
+        <textarea class="chat-in" id="chat-in" placeholder="Ask PRIME anything…" rows="1" onkeydown="chatKey(event)"></textarea>
+        <button class="send-btn" onclick="sendMsg()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ━━━ KNOWLEDGE GRAPH ━━━ -->
+  <section class="view" id="view-graph">
+    <div class="section-title">Knowledge Graph <small>24 nodes · 25 edges</small></div>
+    <div class="graph-layout">
+      <div class="graph-canvas" id="graph-canvas">
+        <svg id="graph-svg"></svg>
+      </div>
+      <div class="graph-sidebar">
+        <div class="legend">
+          <div class="legend-title">Node Types</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#00d4ff"></div>📁 Project</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div>📰 Article</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div>📝 Note</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>📄 PDF</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#ec4899"></div>🎬 Video</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#8b5cf6"></div>🎨 Artifact</div>
+        </div>
+        <div class="graph-hint">Drag nodes to rearrange. Click to inspect.</div>
+        <div class="node-panel" id="node-panel">
+          <div class="node-placeholder">Click any node<br>to see details here</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ━━━ AGENTS ━━━ -->
+  <section class="view" id="view-agents">
+
+    <div class="agents-header">
+      <div>
+        <div class="section-title" style="margin-bottom:6px">Agents <small>5 registered · 2 running</small></div>
+        <div class="agents-stats">
+          <div class="agents-stat"><div class="agents-stat-dot" style="background:var(--cyan);box-shadow:0 0 5px var(--cyan)"></div>2 running</div>
+          <div class="agents-stat"><div class="agents-stat-dot" style="background:var(--text-dim)"></div>1 idle</div>
+          <div class="agents-stat"><div class="agents-stat-dot" style="background:var(--green)"></div>8 completed today</div>
+          <div class="agents-stat"><div class="agents-stat-dot" style="background:var(--amber)"></div>2 queued</div>
+        </div>
+      </div>
+      <button class="spawn-btn" onclick="spawnAgent()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Spawn Agent
+      </button>
+    </div>
+
+    <div class="agents-grid">
+
+      <!-- Agent 1: Research -->
+      <div class="agent-card" style="--agent-color: #00d4ff">
+        <div class="agent-card-top">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div class="agent-avatar" style="background:rgba(0,212,255,.08)">🔍</div>
+            <div>
+              <div class="agent-name">Research</div>
+              <div class="agent-role">Information retrieval · synthesis</div>
+            </div>
+          </div>
+          <div class="agent-status-wrap">
+            <div class="agent-status as-running"><div class="status-pulse"></div>Running</div>
+            <div class="agent-uptime">↑ 14 min</div>
+          </div>
+        </div>
+        <div class="agent-task-label">Current task</div>
+        <div class="agent-task-text">Compare RDF triples vs. property graph for personal knowledge graph at single-user scale — summarise trade-offs, tooling options, and query complexity.</div>
+        <div class="agent-progress-row">
+          <div class="agent-progress-bar"><div class="agent-progress-fill" style="width:62%;background:var(--cyan)"></div></div>
+          <div class="agent-progress-pct">62%</div>
+        </div>
+        <div class="agent-log">
+          <div class="agent-log-line"><span class="log-time">14:22</span><span class="log-info">→</span><span>Fetching W3C RDF primer…</span></div>
+          <div class="agent-log-line"><span class="log-time">14:24</span><span class="log-ok">✓</span><span>Indexed 3 sources on property graphs</span></div>
+          <div class="agent-log-line"><span class="log-time">14:27</span><span class="log-info">→</span><span>Comparing query languages: SPARQL vs Cypher…</span></div>
+          <div class="agent-log-line"><span class="log-time">14:31</span><span class="log-warn">⚠</span><span>Limited local tooling for RDF — noting</span></div>
+        </div>
+        <div class="agent-actions">
+          <button class="agent-btn" onclick="agentAction('pause','Research')">⏸ Pause</button>
+          <button class="agent-btn" onclick="agentAction('logs','Research')">📋 Logs</button>
+          <button class="agent-btn" onclick="agentAction('stop','Research')">⏹ Stop</button>
+          <button class="agent-btn primary" onclick="agentAction('result','Research')">→ Result</button>
+        </div>
+      </div>
+
+      <!-- Agent 2: Writer -->
+      <div class="agent-card" style="--agent-color: #10b981">
+        <div class="agent-card-top">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div class="agent-avatar" style="background:rgba(16,185,129,.08)">✍️</div>
+            <div>
+              <div class="agent-name">Writer</div>
+              <div class="agent-role">Documents · ADRs · summaries</div>
+            </div>
+          </div>
+          <div class="agent-status-wrap">
+            <div class="agent-status as-running"><div class="status-pulse"></div>Running</div>
+            <div class="agent-uptime">↑ 6 min</div>
+          </div>
+        </div>
+        <div class="agent-task-label">Current task</div>
+        <div class="agent-task-text">Draft ADR-003: Voice API selection — document the Whisper vs. Web Speech API decision with context, trade-offs, and consequences.</div>
+        <div class="agent-progress-row">
+          <div class="agent-progress-bar"><div class="agent-progress-fill" style="width:35%;background:var(--green)"></div></div>
+          <div class="agent-progress-pct">35%</div>
+        </div>
+        <div class="agent-log">
+          <div class="agent-log-line"><span class="log-time">14:29</span><span class="log-info">→</span><span>Reading prior ADR-001, ADR-002 for style…</span></div>
+          <div class="agent-log-line"><span class="log-time">14:31</span><span class="log-ok">✓</span><span>Context section drafted</span></div>
+          <div class="agent-log-line"><span class="log-time">14:33</span><span class="log-info">→</span><span>Writing decision rationale…</span></div>
+        </div>
+        <div class="agent-actions">
+          <button class="agent-btn" onclick="agentAction('pause','Writer')">⏸ Pause</button>
+          <button class="agent-btn" onclick="agentAction('logs','Writer')">📋 Logs</button>
+          <button class="agent-btn" onclick="agentAction('stop','Writer')">⏹ Stop</button>
+          <button class="agent-btn primary" onclick="agentAction('result','Writer')">→ Result</button>
+        </div>
+      </div>
+
+      <!-- Agent 3: Analyst -->
+      <div class="agent-card" style="--agent-color: #8b5cf6">
+        <div class="agent-card-top">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div class="agent-avatar" style="background:rgba(139,92,246,.08)">📊</div>
+            <div>
+              <div class="agent-name">Analyst</div>
+              <div class="agent-role">Data · portfolio · metrics</div>
+            </div>
+          </div>
+          <div class="agent-status-wrap">
+            <div class="agent-status as-idle">Idle</div>
+            <div class="agent-uptime">Last active 1 h ago</div>
+          </div>
+        </div>
+        <div class="agent-task-label">Last completed task</div>
+        <div class="agent-task-text" style="border-left-color: var(--text-dim); color: var(--text-dim)">Computed Q1 2026 portfolio performance vs. MSCI World benchmark. Result: +8.2% vs +6.1%. Report saved.</div>
+        <div class="agent-progress-row">
+          <div class="agent-progress-bar"><div class="agent-progress-fill" style="width:100%;background:var(--purple)"></div></div>
+          <div class="agent-progress-pct" style="color:var(--green)">✓</div>
+        </div>
+        <div class="agent-log">
+          <div class="agent-log-line"><span class="log-time">13:14</span><span class="log-ok">✓</span><span>Portfolio data loaded from tracker</span></div>
+          <div class="agent-log-line"><span class="log-time">13:15</span><span class="log-ok">✓</span><span>MSCI World benchmark fetched</span></div>
+          <div class="agent-log-line"><span class="log-time">13:16</span><span class="log-ok">✓</span><span>Report written to Q1 Perf Report.pdf</span></div>
+        </div>
+        <div class="agent-actions">
+          <button class="agent-btn" onclick="agentAction('assign','Analyst')">📋 Assign task</button>
+          <button class="agent-btn" onclick="agentAction('logs','Analyst')">📋 Logs</button>
+          <button class="agent-btn primary" onclick="agentAction('result','Analyst')">→ Last result</button>
+        </div>
+      </div>
+
+      <!-- Agent 4: Monitor -->
+      <div class="agent-card" style="--agent-color: #f59e0b">
+        <div class="agent-card-top">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div class="agent-avatar" style="background:rgba(245,158,11,.08)">👁️</div>
+            <div>
+              <div class="agent-name">Monitor</div>
+              <div class="agent-role">Watching · alerting · digests</div>
+            </div>
+          </div>
+          <div class="agent-status-wrap">
+            <div class="agent-status as-done">
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+              Scheduled
+            </div>
+            <div class="agent-uptime">Next run: 18:00</div>
+          </div>
+        </div>
+        <div class="agent-task-label">Watching</div>
+        <div class="agent-task-text" style="border-left-color: var(--amber)">Portfolio drift check · Contractor email inbox · Renovation permit status · PRIME OS GitHub stars</div>
+        <div class="agent-progress-row">
+          <div class="agent-progress-bar"><div class="agent-progress-fill" style="width:100%;background:var(--amber)"></div></div>
+          <div class="agent-progress-pct">4/4</div>
+        </div>
+        <div class="agent-log">
+          <div class="agent-log-line"><span class="log-time">12:00</span><span class="log-ok">✓</span><span>Portfolio within ±5% drift threshold</span></div>
+          <div class="agent-log-line"><span class="log-time">12:00</span><span class="log-warn">⚠</span><span>No reply from BuildRight — 3 days</span></div>
+          <div class="agent-log-line"><span class="log-time">12:00</span><span class="log-info">→</span><span>Permit status: "Under review"</span></div>
+        </div>
+        <div class="agent-actions">
+          <button class="agent-btn" onclick="agentAction('config','Monitor')">⚙️ Configure</button>
+          <button class="agent-btn" onclick="agentAction('logs','Monitor')">📋 Logs</button>
+          <button class="agent-btn primary" onclick="agentAction('run','Monitor')">▶ Run now</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Queue -->
+    <div class="agents-section-title">Task queue</div>
+    <div class="queue-item">
+      <div class="queue-emoji">🔍</div>
+      <div class="queue-text">Research Agent — "Summarise 3 contractor reviews for QuickBuild from Trustpilot"</div>
+      <div class="queue-badge as-queued" style="background:rgba(245,158,11,.1);color:var(--amber);border:1px solid rgba(245,158,11,.3)">Queued</div>
+    </div>
+    <div class="queue-item">
+      <div class="queue-emoji">✍️</div>
+      <div class="queue-text">Writer Agent — "Draft renovation project brief for contractor handoff meeting"</div>
+      <div class="queue-badge as-queued" style="background:rgba(245,158,11,.1);color:var(--amber);border:1px solid rgba(245,158,11,.3)">Queued</div>
+    </div>
+
+    <!-- Completed today -->
+    <div class="agents-section-title">Completed today</div>
+    <div class="queue-item">
+      <div class="queue-emoji">📊</div>
+      <div class="queue-text">Analyst — "Q1 2026 portfolio performance vs MSCI World"</div>
+      <div class="queue-badge" style="background:rgba(16,185,129,.1);color:var(--green);border:1px solid rgba(16,185,129,.3)">Done · 1 h ago</div>
+    </div>
+    <div class="queue-item">
+      <div class="queue-emoji">🔍</div>
+      <div class="queue-text">Research — "Best practices for force-directed graph layout with D3 v7"</div>
+      <div class="queue-badge" style="background:rgba(16,185,129,.1);color:var(--green);border:1px solid rgba(16,185,129,.3)">Done · 3 h ago</div>
+    </div>
+    <div class="queue-item">
+      <div class="queue-emoji">✍️</div>
+      <div class="queue-text">Writer — "ADR-002: HTML-first prototype approach"</div>
+      <div class="queue-badge" style="background:rgba(16,185,129,.1);color:var(--green);border:1px solid rgba(16,185,129,.3)">Done · 5 h ago</div>
+    </div>
+
+  </section>
+
+</main>
+
+<script>
+/* ═══════════════════════════════
+   NAVIGATION
+═══════════════════════════════ */
+const VIEW_NAMES = { dashboard:'Dashboard', projects:'Projects', chat:'Assistant', graph:'Knowledge Graph', agents:'Agents' };
+
+function showView(name, btn) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  if (btn) btn.classList.add('active');
+  document.getElementById('topbar-path').textContent = VIEW_NAMES[name];
+  if (name === 'graph' && !graphInited) { graphInited = true; requestAnimationFrame(initGraph); }
+}
+
+/* ═══════════════════════════════
+   CLOCK
+═══════════════════════════════ */
+function tick() {
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const t = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  document.getElementById('topbar-clock').textContent = t;
+  document.getElementById('main-clock').textContent = t;
+  const DAYS  = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const MONTHS= ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('main-date').textContent = `${DAYS[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()}`;
+}
+tick(); setInterval(tick, 1000);
+
+function toggleTask(el) { el.classList.toggle('done'); }
+
+/* ═══════════════════════════════
+   PROJECT DATA
+═══════════════════════════════ */
+const PROJECTS = [
+  {
+    icon:'🤖', name:'Personal AI OS',
+    desc:'Prime-style personal assistant — decision tracking, knowledge graph, voice interface',
+    color:'#00d4ff',
+    timeline:[
+      { type:'milestone', date:'May 8, 2026', title:'Project kickoff',
+        body:'Decided to build a personal AI OS inspired by Iron Man\'s PRIME. Vision: local-first, voice-enabled, project + knowledge management in one place.',
+        alts:[] },
+      { type:'adr', date:'May 8, 2026', title:'ADR-001: Local-first data storage',
+        body:'All data stored as Markdown + JSON files in the workspace folder. No external database for MVP. Fast, private, no accounts needed.',
+        alts:['PostgreSQL — rejected: overkill for personal scale','Notion sync — rejected: creates external dependency'] },
+      { type:'decision', date:'May 9, 2026', title:'ADR-002: HTML-first interactive prototype',
+        body:'Build a rich single-file HTML prototype before committing to a tech stack. Validates UX and interaction model quickly without infrastructure setup.',
+        alts:['React app — deferred: adds build tooling complexity','Figma mockup — rejected: not interactive enough to feel'] },
+      { type:'note', date:'May 9, 2026', title:'Next: Knowledge graph schema design',
+        body:'Open question: RDF triples (standards-compliant, SPARQL queryable) vs property graph (simpler, fewer deps). Need to evaluate for personal-scale usage.',
+        alts:[] },
+    ],
+    todos:{
+      'In Progress':[
+        { text:'Design knowledge graph schema', prio:'high', done:false },
+        { text:'Build interactive prototype', prio:'high', done:true },
+      ],
+      'Up Next':[
+        { text:'Choose voice API — Whisper vs browser Web Speech', prio:'med', done:false },
+        { text:'Set up local file-watching system', prio:'med', done:false },
+        { text:'Design document visualization layer', prio:'low', done:false },
+      ],
+      'Backlog':[
+        { text:'Multi-device sync strategy', prio:'low', done:false },
+        { text:'Mobile companion app research', prio:'low', done:false },
+        { text:'Plugin / extension architecture', prio:'low', done:false },
+      ],
+    },
+    docs:[
+      { name:'System Architecture', icon:'📐', meta:'Updated today' },
+      { name:'ADR Log', icon:'📋', meta:'May 9, 2026' },
+      { name:'UI Mockup v1', icon:'🎨', meta:'May 9, 2026' },
+      { name:'Voice API Research', icon:'🎤', meta:'May 8, 2026' },
+      { name:'Data Model Draft', icon:'🗃️', meta:'May 8, 2026' },
+      { name:'Inspiration References', icon:'🔗', meta:'May 7, 2026' },
+    ],
+    concepts:[
+      { name:'Decision archaeology', desc:'Every choice recorded with context and alternatives considered, fully queryable later.' },
+      { name:'Local-first', desc:'All data lives in your files. No cloud lock-in, synced optionally.' },
+      { name:'Knowledge graph', desc:'Entities (projects, docs, decisions, people) connected by semantic edges, visualized and navigable.' },
+      { name:'Voice-first layer', desc:'Natural language as the primary interaction mode — type or speak.' },
+    ],
+  },
+  {
+    icon:'🏠', name:'Home Renovation 2026',
+    desc:'Bathroom & kitchen renovation — contractor selection, permits, Q3 start',
+    color:'#f59e0b',
+    timeline:[
+      { type:'milestone', date:'Mar 1, 2026', title:'Project initiated',
+        body:'Decided to renovate bathroom and kitchen. Budget cap: €45,000. Target completion: September 2026.',
+        alts:[] },
+      { type:'decision', date:'Mar 15, 2026', title:'Scope: Bathroom first, kitchen Q4',
+        body:'Starting with bathroom to keep kitchen functional. Kitchen renovation deferred to Q4 budget permitting.',
+        alts:['Both simultaneously — rejected: too disruptive to daily life','Kitchen first — rejected: bathroom more urgent'] },
+      { type:'adr', date:'Apr 10, 2026', title:'Contractor shortlist: 3 candidates',
+        body:'Three contractors shortlisted after initial quotes: BuildRight Co., Novak & Sons, QuickBuild. Final decision pending reference checks.',
+        alts:[] },
+    ],
+    todos:{
+      'Immediate':[
+        { text:'Review BuildRight final quote', prio:'high', done:false },
+        { text:'Get permit status update from city office', prio:'high', done:false },
+      ],
+      'In Progress':[
+        { text:'Finalize tile & fixture selection', prio:'med', done:false },
+        { text:'Contractor reference checks', prio:'med', done:true },
+      ],
+      'Done':[
+        { text:'Architect consultation', prio:'low', done:true },
+        { text:'Submit building permit application', prio:'high', done:true },
+        { text:'Initial contractor outreach', prio:'med', done:true },
+      ],
+    },
+    docs:[
+      { name:'BuildRight Quote', icon:'💰', meta:'May 7, 2026' },
+      { name:'Novak & Sons Quote', icon:'💰', meta:'May 3, 2026' },
+      { name:'QuickBuild Quote', icon:'💰', meta:'Apr 28, 2026' },
+      { name:'Architect Plans', icon:'📐', meta:'Apr 20, 2026' },
+      { name:'Permit Application', icon:'📋', meta:'Apr 1, 2026' },
+      { name:'Mood Board', icon:'🎨', meta:'Mar 10, 2026' },
+      { name:'Budget Tracker', icon:'📊', meta:'Updated weekly' },
+    ],
+    concepts:[
+      { name:'Wet room design', desc:'Open shower without enclosure — modern and minimalist.' },
+      { name:'Sustainable materials', desc:'Prioritize recycled tiles and low-VOC finishes throughout.' },
+      { name:'Radiant floor heating', desc:'Under-tile heating throughout bathroom for comfort — evaluating cost vs. benefit.' },
+    ],
+  },
+  {
+    icon:'📊', name:'Investment Portfolio Q2',
+    desc:'Q2 2026 rebalancing, ETF allocation, performance benchmarking',
+    color:'#10b981',
+    timeline:[
+      { type:'milestone', date:'Apr 1, 2026', title:'Q2 review initiated',
+        body:'Q1 performance: +8.2% vs benchmark +6.1%. Starting Q2 rebalancing. Focus: international diversification.',
+        alts:[] },
+      { type:'decision', date:'Apr 15, 2026', title:'Increase international ETF to 35%',
+        body:'Shift 10% from domestic large-cap to VXUS (international developed markets ETF). Rationale: USD concentration risk, valuation gap vs. international.',
+        alts:['Add emerging market exposure — deferred: higher volatility','Maintain current allocation — rejected: overweight domestic'] },
+      { type:'adr', date:'May 1, 2026', title:'ADR: ±5% drift rebalancing threshold',
+        body:'Auto-rebalance triggers when any asset class drifts ±5% from target. Reduces transaction costs vs. calendar-based approach.',
+        alts:['Quarterly calendar rebalancing — considered, allows more drift','Daily rebalancing — rejected: transaction costs too high'] },
+      { type:'note', date:'May 5, 2026', title:'Tax-loss harvesting window open',
+        body:'International equity position is currently at a small loss. Consider harvesting before end of Q2 to offset gains elsewhere.',
+        alts:[] },
+    ],
+    todos:{
+      'This Week':[
+        { text:'Execute VXUS purchase order', prio:'high', done:false },
+        { text:'Review bond allocation (currently 15%)', prio:'med', done:false },
+      ],
+      'This Month':[
+        { text:'Configure auto-rebalance rules in brokerage', prio:'med', done:false },
+        { text:'Q2 tax-loss harvesting review', prio:'low', done:false },
+        { text:'Update performance tracker spreadsheet', prio:'low', done:true },
+      ],
+    },
+    docs:[
+      { name:'Q1 Performance Report', icon:'📈', meta:'Apr 1, 2026' },
+      { name:'Allocation Strategy', icon:'🗺️', meta:'Apr 15, 2026' },
+      { name:'ETF Research: VXUS', icon:'🔍', meta:'Apr 12, 2026' },
+      { name:'Tax Strategy 2026', icon:'💼', meta:'Mar 15, 2026' },
+      { name:'Benchmark Comparison', icon:'📊', meta:'May 1, 2026' },
+    ],
+    concepts:[
+      { name:'Factor investing', desc:'Tilt toward value and small-cap factors for long-term premium capture.' },
+      { name:'Currency hedging', desc:'Unhedged for long-term horizon. Monitor if USD strengthens >5%.' },
+      { name:'Tax efficiency', desc:'Hold bonds in tax-advantaged accounts; equities in taxable for flexibility.' },
+    ],
+  },
+];
+
+let curProject = null;
+
+function openProject(idx) {
+  curProject = PROJECTS[idx];
+  showView('projects', document.querySelectorAll('.nav-btn')[1]);
+  document.getElementById('proj-list').style.display = 'none';
+  const d = document.getElementById('proj-detail');
+  d.classList.add('visible');
+  document.getElementById('d-icon').textContent = curProject.icon;
+  document.getElementById('d-name').textContent  = curProject.name;
+  document.getElementById('d-desc').textContent  = curProject.desc;
+  renderTimeline(curProject.timeline);
+  renderTodos(curProject.todos);
+  renderDocs(curProject.docs);
+  renderConcepts(curProject.concepts);
+  // reset tabs
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i===0));
+  document.querySelectorAll('.tab-content').forEach((c,i) => c.classList.toggle('active', i===0));
+}
+
+function closeProject() {
+  document.getElementById('proj-list').style.display = '';
+  document.getElementById('proj-detail').classList.remove('visible');
+}
+
+const T_CLASS = { adr:'t-adr', decision:'t-decision', milestone:'t-milestone', note:'t-note' };
+const T_LABEL = { adr:'ADR', decision:'Decision', milestone:'Milestone', note:'Note' };
+
+function renderTimeline(items) {
+  document.getElementById('tl-content').innerHTML = items.map(it => `
+    <div class="tl-item">
+      <div class="tl-dot"></div>
+      <div class="tl-card">
+        <div class="tl-head">
+          <span class="tl-type ${T_CLASS[it.type]}">${T_LABEL[it.type]}</span>
+          <span class="tl-date">${it.date}</span>
+        </div>
+        <div class="tl-title">${it.title}</div>
+        <div class="tl-body">${it.body}</div>
+        ${it.alts.length ? `
+          <div class="alts">
+            <div class="alts-label">Alternatives considered</div>
+            ${it.alts.map(a => `<div class="alt-item"><span class="alt-x">✕</span>${a}</div>`).join('')}
+          </div>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+const P_CLASS = { high:'p-high', med:'p-med', low:'p-low' };
+
+function renderTodos(sections) {
+  document.getElementById('todos-content').innerHTML = Object.entries(sections).map(([sec, items]) => `
+    <div class="todo-section">
+      <div class="todo-section-lbl">${sec}</div>
+      ${items.map(it => `
+        <div class="todo-item ${it.done?'done':''}" onclick="this.classList.toggle('done')">
+          <div class="todo-cb">${it.done?'<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5"><polyline points="20 6 9 17 4 12"/></svg>':''}</div>
+          <span class="todo-lbl">${it.text}</span>
+          <span class="prio ${P_CLASS[it.prio]}">${it.prio}</span>
+        </div>`).join('')}
+    </div>`).join('');
+}
+
+function renderDocs(docs) {
+  document.getElementById('docs-content').innerHTML = docs.map(d => `
+    <div class="doc-card">
+      <div class="doc-icon">${d.icon}</div>
+      <div class="doc-name">${d.name}</div>
+      <div class="doc-meta">${d.meta}</div>
+    </div>`).join('');
+}
+
+function renderConcepts(concepts) {
+  document.getElementById('concepts-content').innerHTML = concepts.map(c => `
+    <div class="concept-item">
+      <div class="concept-name">💡 ${c.name}</div>
+      <div class="concept-desc">${c.desc}</div>
+    </div>`).join('');
+}
+
+function showTab(name, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+/* ═══════════════════════════════
+   CHAT / VOICE
+═══════════════════════════════ */
+// Build waveform bars
+const waveEl = document.getElementById('wave-big');
+const HEIGHTS = [6,10,16,24,34,44,54,58,62,58,54,44,34,24,16,10,6,12,22,36,50,36,22,12];
+HEIGHTS.forEach((h, i) => {
+  const s = document.createElement('span');
+  s.style.height = h + 'px';
+  s.style.animationDelay = (i * 0.055) + 's';
+  waveEl.appendChild(s);
+});
+
+let micOn = false, micTimer = null;
+
+function toggleMic() {
+  micOn = !micOn;
+  const btn = document.getElementById('mic-btn');
+  const wave = document.getElementById('wave-big');
+  const status = document.getElementById('wave-status');
+  if (micOn) {
+    btn.classList.add('recording');
+    wave.classList.remove('idle');
+    status.textContent = 'Listening…';
+    micTimer = setTimeout(() => {
+      toggleMic();
+      addMsg('user', 'Show me my active project statuses');
+      setTimeout(() => addMsg('ai', 'You have 2 active projects right now:<br><br><strong>Personal AI OS</strong> — 25% complete, 7 open tasks, next up: knowledge graph schema design.<br><strong>Home Renovation</strong> — 40% complete, awaiting contractor final quote and permit update.<br><br>Investment Portfolio is in planning mode — one pending trade (VXUS purchase). Want me to drill into any of them?'), 1200);
+    }, 3500);
+  } else {
+    if (micTimer) { clearTimeout(micTimer); micTimer = null; }
+    btn.classList.remove('recording');
+    wave.classList.add('idle');
+    status.textContent = 'Idle — click mic or type below';
+  }
+}
+
+const AI_REPLIES = [
+  "I've noted that. Want me to record it as a decision or add it to the timeline?",
+  "Based on your project data, that aligns with your local-first principle. Should I log it as an ADR?",
+  "I found 3 related documents in your workspace. Want me to surface them?",
+  "Your Home Renovation project has 2 high-priority items pending. A quick summary?",
+  "Got it — added to your backlog. Anything else you'd like to capture?",
+  "The knowledge graph shows this connects to 4 other nodes. Want to open the graph view?",
+  "That's consistent with how you've approached similar decisions in the past. Log it?",
+];
+let replyIdx = 0;
+
+function addMsg(role, html) {
+  const msgs = document.getElementById('chat-msgs');
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  div.innerHTML = `<div class="msg-av">${role==='ai'?'⚡':'M'}</div><div class="msg-bub">${html}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function showTyping() {
+  const msgs = document.getElementById('chat-msgs');
+  const div = document.createElement('div');
+  div.className = 'msg ai'; div.id = 'typing-indicator';
+  div.innerHTML = `<div class="msg-av">⚡</div><div class="msg-bub"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>`;
+  msgs.appendChild(div); msgs.scrollTop = msgs.scrollHeight;
+}
+
+function removeTyping() {
+  const t = document.getElementById('typing-indicator');
+  if (t) t.remove();
+}
+
+function sendMsg() {
+  const el = document.getElementById('chat-in');
+  const txt = el.value.trim();
+  if (!txt) return;
+  el.value = '';
+  el.style.height = '';
+  addMsg('user', txt);
+  const wave = document.getElementById('wave-big');
+  const status = document.getElementById('wave-status');
+  wave.classList.remove('idle');
+  status.textContent = 'Thinking…';
+  showTyping();
+  setTimeout(() => {
+    removeTyping();
+    wave.classList.add('idle');
+    status.textContent = 'Idle — click mic or type below';
+    addMsg('ai', AI_REPLIES[replyIdx++ % AI_REPLIES.length]);
+  }, 1600);
+}
+
+function chatKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+}
+
+/* ═══════════════════════════════
+   AGENTS
+═══════════════════════════════ */
+const AGENT_MSGS = {
+  pause:  n => `${n} paused. Task state saved — resume any time.`,
+  stop:   n => `${n} stopped. Partial results saved to knowledge base.`,
+  logs:   n => `Full logs for ${n} are being prepared… (in the real system these would open in a panel)`,
+  result: n => `${n}'s latest result is being surfaced… add it to a project or save as a note?`,
+  assign: n => `What task should ${n} work on? Type it in the chat.`,
+  config: n => `${n} configuration panel coming in the next version.`,
+  run:    n => `${n} triggered manually — running now.`,
+};
+
+function agentAction(action, agentName) {
+  const msg = AGENT_MSGS[action] ? AGENT_MSGS[action](agentName) : `Action: ${action} on ${agentName}`;
+  // Surface in chat as a system message
+  showView('chat', document.querySelectorAll('.nav-btn')[2]);
+  setTimeout(() => addMsg('ai', `<em>[${agentName} agent]</em><br>${msg}`), 200);
+}
+
+function spawnAgent() {
+  showView('chat', document.querySelectorAll('.nav-btn')[2]);
+  setTimeout(() => addMsg('ai', `Sure — what kind of agent do you want to spawn?<br><br>
+    Tell me its <strong>role</strong> (e.g. "research", "writer", "monitor"), give it a <strong>task</strong>, and optionally set a <strong>project context</strong>. I'll configure and launch it.`), 200);
+}
+
+/* ═══════════════════════════════
+   KNOWLEDGE GRAPH (D3)
+═══════════════════════════════ */
+let graphInited = false;
+
+// Node metadata for the detail panel
+const NODE_META = {
+  p1:   { tag:'Project',  emoji:'📁', desc:'Prime-style personal assistant — local-first, all views prototyped.' },
+  p2:   { tag:'Project',  emoji:'📁', desc:'Bathroom & kitchen renovation — contractor selection underway.' },
+  p3:   { tag:'Project',  emoji:'📁', desc:'Q2 2026 rebalancing — international ETF shift in progress.' },
+  a1:   { tag:'Article',  emoji:'📰', desc:'"Building a Second Brain" — Tiago Forte. Inspiration for knowledge capture system.' },
+  a2:   { tag:'Article',  emoji:'📰', desc:'"Iron Man HUD Design Breakdown" — UI reference for the Prime aesthetic.' },
+  a3:   { tag:'Article',  emoji:'📰', desc:'"RDF vs Property Graph" — research for knowledge graph schema decision.' },
+  a4:   { tag:'Article',  emoji:'📰', desc:'"International ETF Diversification 2026" — Morningstar analysis.' },
+  a5:   { tag:'Article',  emoji:'📰', desc:'"Wet Room Design Guide" — bathroom renovation style reference.' },
+  n1:   { tag:'Note',     emoji:'📝', desc:'Voice interface brainstorm — ideas for wake word, ambient mode, and response style.' },
+  n2:   { tag:'Note',     emoji:'📝', desc:'Contractor meeting notes — BuildRight Co. site visit, May 3 2026.' },
+  n3:   { tag:'Note',     emoji:'📝', desc:'Q2 rebalancing plan — allocation targets and execution sequence.' },
+  n4:   { tag:'Note',     emoji:'📝', desc:'ADR-001 draft — local-first storage rationale and trade-offs.' },
+  pdf1: { tag:'PDF',      emoji:'📄', desc:'BuildRight Co. final quote — €18,400, 6-week timeline.' },
+  pdf2: { tag:'PDF',      emoji:'📄', desc:'Architect plans — bathroom wet-room layout, stamped Apr 20 2026.' },
+  pdf3: { tag:'PDF',      emoji:'📄', desc:'Q1 2026 Performance Report — +8.2% vs benchmark +6.1%.' },
+  pdf4: { tag:'PDF',      emoji:'📄', desc:'Tax Strategy 2026 — loss harvesting and account placement guide.' },
+  v1:   { tag:'Video',    emoji:'🎬', desc:'WWDC 2025 — "Designing for Voice" session. SwiftUI speech patterns.' },
+  v2:   { tag:'Video',    emoji:'🎬', desc:'"Bathroom Renovation Start to Finish" — YouTube, 42 min walkthrough.' },
+  v3:   { tag:'Video',    emoji:'🎬', desc:'"Factor Investing Explained" — Ben Felix, Common Sense Investing.' },
+  art1: { tag:'Artifact', emoji:'🎨', desc:'UI Mockup v1 — Figma file, all four PRIME views sketched out.' },
+  art2: { tag:'Artifact', emoji:'🎨', desc:'jarvis-os.html — interactive prototype, built May 9 2026.' },
+  art3: { tag:'Artifact', emoji:'🎨', desc:'ADR Log — all architectural decisions with alternatives considered.' },
+  art4: { tag:'Artifact', emoji:'🎨', desc:'Budget Tracker — Excel, tracks renovation costs vs €45k cap.' },
+  art5: { tag:'Artifact', emoji:'🎨', desc:'Chat history export — PRIME design session, May 9 2026.' },
+};
+
+function initGraph() {
+  // Wait a frame so the view has laid out before reading dimensions
+  requestAnimationFrame(() => {
+    const container = document.getElementById('graph-canvas');
+    const rect = container.getBoundingClientRect();
+    const W = rect.width  || 800;
+    const H = rect.height || 500;
+    _buildGraph(W, H);
+  });
+}
+
+function _buildGraph(W, H) {
+  const NODES = [
+    // Projects
+    { id:'p1',   label:'Personal AI OS',   type:'project', r:22 },
+    { id:'p2',   label:'Home Renovation',  type:'project', r:22 },
+    { id:'p3',   label:'Portfolio Q2',     type:'project', r:22 },
+    // Articles
+    { id:'a1',   label:'Second Brain',     type:'article', r:11 },
+    { id:'a2',   label:'Iron Man HUD',     type:'article', r:11 },
+    { id:'a3',   label:'RDF vs PropGraph', type:'article', r:11 },
+    { id:'a4',   label:'Intl ETF 2026',    type:'article', r:11 },
+    { id:'a5',   label:'Wet Room Guide',   type:'article', r:11 },
+    // Notes
+    { id:'n1',   label:'Voice Brainstorm', type:'note',    r:11 },
+    { id:'n2',   label:'Contractor Notes', type:'note',    r:11 },
+    { id:'n3',   label:'Q2 Rebal Plan',    type:'note',    r:11 },
+    { id:'n4',   label:'ADR-001 Draft',    type:'note',    r:11 },
+    // PDFs
+    { id:'pdf1', label:'BuildRight Quote', type:'pdf',     r:11 },
+    { id:'pdf2', label:'Architect Plans',  type:'pdf',     r:11 },
+    { id:'pdf3', label:'Q1 Perf Report',   type:'pdf',     r:11 },
+    { id:'pdf4', label:'Tax Strategy',     type:'pdf',     r:11 },
+    // Videos
+    { id:'v1',   label:'WWDC: Voice',      type:'video',   r:11 },
+    { id:'v2',   label:'Reno Walkthrough', type:'video',   r:11 },
+    { id:'v3',   label:'Factor Investing', type:'video',   r:11 },
+    // Artifacts
+    { id:'art1', label:'UI Mockup v1',     type:'artifact',r:12 },
+    { id:'art2', label:'jarvis-os.html',   type:'artifact',r:14 },
+    { id:'art3', label:'ADR Log',          type:'artifact',r:12 },
+    { id:'art4', label:'Budget Tracker',   type:'artifact',r:12 },
+    { id:'art5', label:'Chat History',     type:'artifact',r:12 },
+  ];
+
+  const LINKS = [
+    // Project → children
+    {s:'p1', t:'a1'}, {s:'p1', t:'a2'}, {s:'p1', t:'a3'},
+    {s:'p1', t:'n1'}, {s:'p1', t:'n4'},
+    {s:'p1', t:'v1'},
+    {s:'p1', t:'art1'}, {s:'p1', t:'art2'}, {s:'p1', t:'art3'}, {s:'p1', t:'art5'},
+    {s:'p2', t:'a5'},
+    {s:'p2', t:'n2'},
+    {s:'p2', t:'pdf1'}, {s:'p2', t:'pdf2'},
+    {s:'p2', t:'v2'},
+    {s:'p2', t:'art4'},
+    {s:'p3', t:'a4'},
+    {s:'p3', t:'n3'},
+    {s:'p3', t:'pdf3'}, {s:'p3', t:'pdf4'},
+    {s:'p3', t:'v3'},
+    // Cross-links (nodes shared between projects / referencing each other)
+    {s:'n1', t:'a2'},    // voice note cites iron man article
+    {s:'n4', t:'a3'},    // ADR draft cites RDF article
+    {s:'art3', t:'n4'},  // ADR log contains the draft
+    {s:'a1', t:'p3'},    // Second Brain also relevant to portfolio tracking
+  ].map(l => ({ source: l.s, target: l.t }));
+
+  const COLORS = {
+    project: '#00d4ff',
+    article: '#3b82f6',
+    note:    '#10b981',
+    pdf:     '#f59e0b',
+    video:   '#ec4899',
+    artifact:'#8b5cf6',
+  };
+
+  const EMOJI = {
+    project: '📁', article: '📰', note: '📝',
+    pdf: '📄', video: '🎬', artifact: '🎨',
+  };
+
+  const svgEl = document.getElementById('graph-svg');
+  svgEl.innerHTML = ''; // clear any previous render
+  const svg = d3.select(svgEl).attr('viewBox', `0 0 ${W} ${H}`);
+
+  // Glow filter
+  const defs = svg.append('defs');
+  const filt = defs.append('filter').attr('id','glow2');
+  filt.append('feGaussianBlur').attr('stdDeviation','3').attr('result','blur');
+  const fm = filt.append('feMerge');
+  fm.append('feMergeNode').attr('in','blur');
+  fm.append('feMergeNode').attr('in','SourceGraphic');
+
+  const sim = d3.forceSimulation(NODES)
+    .force('link',    d3.forceLink(LINKS).id(d=>d.id).distance(d => d.source.type==='project' ? 110 : 70).strength(0.5))
+    .force('charge',  d3.forceManyBody().strength(d => d.type==='project' ? -400 : -160))
+    .force('center',  d3.forceCenter(W/2, H/2))
+    .force('collide', d3.forceCollide().radius(d=>d.r+16));
+
+  // Draw links
+  const linkG = svg.append('g').selectAll('line')
+    .data(LINKS).join('line')
+    .attr('stroke', d => {
+      const src = NODES.find(n => n.id === (typeof d.source==='object' ? d.source.id : d.source));
+      return src ? COLORS[src.type] + '30' : 'rgba(0,212,255,0.15)';
+    })
+    .attr('stroke-width', 1.2);
+
+  // Draw nodes
+  const nodeG = svg.append('g').selectAll('g')
+    .data(NODES).join('g')
+    .attr('cursor','pointer')
+    .call(d3.drag()
+      .on('start',(e,d)=>{ if(!e.active) sim.alphaTarget(.3).restart(); d.fx=d.x; d.fy=d.y; })
+      .on('drag', (e,d)=>{ d.fx=e.x; d.fy=e.y; })
+      .on('end',  (e,d)=>{ if(!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; })
+    )
+    .on('click',(e,d) => nodeClick(d, LINKS, COLORS, NODES));
+
+  // Outer glow ring for projects
+  nodeG.filter(d => d.type==='project')
+    .append('circle')
+    .attr('r', d=>d.r+6)
+    .attr('fill','none')
+    .attr('stroke', d=>COLORS[d.type])
+    .attr('stroke-width', 0.5)
+    .attr('opacity', 0.3);
+
+  // Main circle
+  nodeG.append('circle')
+    .attr('r', d=>d.r)
+    .attr('fill', d=> COLORS[d.type]+'1a')
+    .attr('stroke', d=> COLORS[d.type])
+    .attr('stroke-width', d=> d.type==='project' ? 2 : 1.4)
+    .attr('filter','url(#glow2)');
+
+  // Emoji inside node
+  nodeG.append('text')
+    .attr('text-anchor','middle')
+    .attr('dominant-baseline','central')
+    .attr('font-size', d=> d.type==='project' ? '14' : '10')
+    .text(d=> EMOJI[d.type]);
+
+  // Label below node
+  nodeG.append('text')
+    .attr('text-anchor','middle')
+    .attr('dy', d=> d.r + 13)
+    .attr('fill','#94a3b8')
+    .attr('font-size','9.5')
+    .attr('font-family','system-ui,sans-serif')
+    .text(d=> d.label.length > 16 ? d.label.slice(0,14)+'…' : d.label);
+
+  sim.on('tick',()=>{
+    linkG
+      .attr('x1',d=>d.source.x).attr('y1',d=>d.source.y)
+      .attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+    nodeG.attr('transform',d=>`translate(${d.x},${d.y})`);
+  });
+}
+
+function nodeClick(d, links, colors, nodes) {
+  const meta = NODE_META[d.id] || { tag: d.type, emoji: '●', desc: '' };
+  const connCount = links.filter(l =>
+    (l.source.id||l.source)===d.id || (l.target.id||l.target)===d.id
+  ).length;
+
+  // Find connected node labels
+  const connNodes = links
+    .filter(l => (l.source.id||l.source)===d.id || (l.target.id||l.target)===d.id)
+    .map(l => {
+      const otherId = (l.source.id||l.source)===d.id ? (l.target.id||l.target) : (l.source.id||l.source);
+      const other = nodes.find(n=>n.id===otherId);
+      return other ? other.label : otherId;
+    })
+    .slice(0,5);
+
+  document.getElementById('node-panel').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+      <div style="width:10px;height:10px;border-radius:50%;background:${colors[d.type]};box-shadow:0 0 7px ${colors[d.type]}66"></div>
+      <span style="font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:var(--text-dim)">${meta.tag}</span>
+    </div>
+    <div style="font-size:22px;margin-bottom:6px">${meta.emoji}</div>
+    <div style="font-size:14px;font-weight:600;margin-bottom:8px;line-height:1.3">${d.label}</div>
+    <div style="font-size:11px;color:var(--text-dim);line-height:1.6;margin-bottom:14px">${meta.desc}</div>
+    ${connCount ? `
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-dim);margin-bottom:7px">${connCount} connection${connCount!==1?'s':''}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:5px">
+      ${connNodes.map(n=>`<span style="font-size:10px;padding:2px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text-dim)">${n}</span>`).join('')}
+    </div>` : ''}
+  `;
+}
+</script>
+</body>
+</html>
