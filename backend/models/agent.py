@@ -11,7 +11,6 @@ On disk layout:
         log.jsonl          ← one LogEntry per line (append-only)
         result.md          ← final output written by the agent
 """
-from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum

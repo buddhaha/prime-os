@@ -10,7 +10,6 @@ Node ID conventions:
   - Decisions: "{project_id}::{decision_id}" (e.g. "personal-ai-os::ADR-001")
   - Resources: resource UUID (e.g. "a1b2c3d4")
 """
-from __future__ import annotations
 
 import networkx as nx
 

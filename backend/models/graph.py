@@ -2,7 +2,6 @@
 Graph models — the shape of data returned by GET /api/graph.
 These are the wire types; the in-memory graph uses NetworkX internally.
 """
-from __future__ import annotations
 
 from typing import Any
 from pydantic import BaseModel

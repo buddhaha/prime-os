@@ -7,7 +7,6 @@ Run with:
 Or via the helper script:
     python -m backend
 """
-from __future__ import annotations
 
 import asyncio
 import logging

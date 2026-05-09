@@ -1,21 +1,25 @@
 """
-Seed script — populates ~/PRIME with example data so you can start
-the server and immediately see a live knowledge graph.
+Seed script — populates ~/PRIME with real project data.
 
 Run once:
     python -m backend.seed
+
+To reset and re-seed:
+    rm -rf ~/PRIME && python -m backend.seed
 """
-from __future__ import annotations
 
 import sys
 from pathlib import Path
 
-# Make sure package root is on the path when run directly
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from backend.config import settings
 from backend.services.file_store import FileStore
-from backend.models.project import ProjectCreate, ProjectStatus, DecisionCreate, DecisionType, Alternative, TodoCreate, Priority
+from backend.models.project import (
+    ProjectCreate, ProjectStatus, ProjectType,
+    DecisionCreate, DecisionType,
+    Alternative, TodoCreate, Priority, TodoUpdate, TodoStatus,
+)
 from backend.models.resource import ResourceCreate, ResourceType, EdgeCreate, RelationType
 from backend.models.agent import AgentCreate, AgentRole, AgentTool
 
@@ -26,256 +30,483 @@ def seed():
 
     # ── Projects ──────────────────────────────────────────────────────
 
-    p1 = store.create_project(ProjectCreate(
-        name="Personal AI OS",
+    soc = store.create_project(ProjectCreate(
+        name="Autonomous SOC",
+        emoji="🛡️",
+        description=(
+            "Capability build: AI-driven autonomous Security Operations Centre "
+            "using WatsonX Orchestrate (or alternative agentic platform). "
+            "Goal: automate Tier-1 alert triage, enrichment, and response — "
+            "reducing analyst fatigue and mean-time-to-respond."
+        ),
+        color="#ef4444",
+        status=ProjectStatus.active,
+        project_type=ProjectType.capability,
+        tags=["ibm", "security", "ai", "agentic", "watsonx", "soc"],
+    ))
+    print(f"  Created project: {soc.id}")
+
+    prime = store.create_project(ProjectCreate(
+        name="PRIME OS",
         emoji="🤖",
-        description="PRIME — Jarvis-style personal assistant with knowledge graph, voice interface, and agent management.",
+        description=(
+            "Personal intelligence system. Jarvis-style dashboard for managing "
+            "projects, knowledge, and autonomous agents — local-first, runs on your machine. "
+            "FastAPI backend, file-based storage, D3 knowledge graph, Claude agents."
+        ),
         color="#00d4ff",
         status=ProjectStatus.active,
-        tags=["software", "ai", "personal"],
+        project_type=ProjectType.personal,
+        tags=["software", "ai", "personal", "python", "fastapi"],
     ))
-    print(f"  Created project: {p1.id}")
+    print(f"  Created project: {prime.id}")
 
-    p2 = store.create_project(ProjectCreate(
-        name="Home Renovation 2026",
-        emoji="🏠",
-        description="Bathroom & kitchen renovation — contractor selection, permits, Q3 start.",
-        color="#f59e0b",
-        status=ProjectStatus.active,
-        tags=["home", "renovation"],
-    ))
-    print(f"  Created project: {p2.id}")
-
-    p3 = store.create_project(ProjectCreate(
-        name="Investment Portfolio Q2",
-        emoji="📊",
-        description="Q2 2026 rebalancing — international ETF shift and auto-rebalance setup.",
-        color="#10b981",
-        status=ProjectStatus.planning,
-        tags=["finance", "investing"],
-    ))
-    print(f"  Created project: {p3.id}")
-
-    # ── Decisions ─────────────────────────────────────────────────────
+    # ── Decisions — Autonomous SOC ────────────────────────────────────
 
     store.create_decision(DecisionCreate(
-        project_id=p1.id,
-        title="Local-first data storage",
+        project_id=soc.id,
+        title="Agentic platform: WatsonX Orchestrate vs open alternatives",
         type=DecisionType.adr,
-        context="Need a storage layer for PRIME that is fast, private, and doesn't require external services.",
-        body="All data stored as Markdown + JSON files in ~/PRIME. No external database for MVP.",
-        consequences="Human-readable, git-trackable. Queries are filesystem scans — acceptable at personal scale.",
+        context=(
+            "The capability needs an orchestration layer to coordinate multiple AI agents "
+            "(alert triage, enrichment, threat classifier, response). "
+            "Key criteria: IBM client trust, enterprise support, speed to demo, "
+            "and flexibility to extend beyond security use cases."
+        ),
+        body=(
+            "Evaluate WatsonX Orchestrate as primary platform, with LangGraph and CrewAI "
+            "as open alternatives. Decision deferred pending hands-on evaluation of "
+            "WatsonX Orchestrate's agent-to-agent handoff and tool-calling capabilities. "
+            "If WO cannot handle dynamic multi-agent workflows natively, "
+            "fall back to LangGraph with watsonx.ai as the LLM backend."
+        ),
+        consequences=(
+            "WatsonX Orchestrate path: stronger IBM story, pre-built skills marketplace, "
+            "but potentially less flexible for custom security workflows. "
+            "LangGraph path: full control, open source, but requires more custom build "
+            "and weaker IBM narrative for client conversations."
+        ),
         alternatives=[
-            Alternative(title="PostgreSQL", reason="Overkill for personal scale; adds infrastructure dependency."),
-            Alternative(title="Notion sync", reason="Creates external dependency and data lock-in."),
+            Alternative(
+                title="CrewAI",
+                reason="Good for role-based agent teams but limited enterprise support and no IBM integration story.",
+            ),
+            Alternative(
+                title="AutoGen (Microsoft)",
+                reason="Strong multi-agent framework but Microsoft-aligned — wrong narrative for IBM pre-sales.",
+            ),
+            Alternative(
+                title="Raw Anthropic/Claude SDK",
+                reason="Maximum flexibility but no orchestration primitives — would need to build scheduling and handoff from scratch.",
+            ),
         ],
-        tags=["storage", "architecture"],
+        tags=["architecture", "agentic", "watsonx", "platform"],
     ))
 
     store.create_decision(DecisionCreate(
-        project_id=p1.id,
-        title="HTML-first interactive prototype",
+        project_id=soc.id,
+        title="SOC automation scope: Tier-1 triage first",
+        type=DecisionType.decision,
+        context=(
+            "Full autonomous SOC is a multi-year roadmap. For the capability demo, "
+            "scope must be narrow enough to build in weeks and clear enough to show ROI. "
+            "The highest-pain, highest-volume SOC problem is Tier-1 alert triage: "
+            "80% of alerts are false positives; analysts spend most of their time "
+            "on enrichment that could be automated."
+        ),
+        body=(
+            "Focus the demo on Tier-1 alert triage and enrichment: "
+            "ingest alert → enrich with threat intel → classify → "
+            "auto-close or route to Tier-2 with a structured investigation brief. "
+            "Response automation (blocking IPs, isolating endpoints) deferred to Phase 2."
+        ),
+        consequences=(
+            "Faster demo build. Clear, measurable ROI story (alert volume handled, analyst hours saved). "
+            "Leaves room to expand to response automation in follow-on conversations. "
+            "Risk: client may ask about full response — need a clear Phase 2 roadmap answer."
+        ),
+        alternatives=[
+            Alternative(
+                title="Full autonomous response",
+                reason="Too broad for a demo; automated response requires deep client-specific SOAR integration.",
+            ),
+            Alternative(
+                title="Threat hunting use case",
+                reason="Higher value but harder to demo without client data; Tier-1 triage has a clearer, universal story.",
+            ),
+        ],
+        tags=["scope", "demo", "architecture"],
+    ))
+
+    # ── Decisions — PRIME OS ──────────────────────────────────────────
+
+    store.create_decision(DecisionCreate(
+        project_id=prime.id,
+        title="Local-first file storage for MVP",
         type=DecisionType.adr,
-        context="Need to validate the UX and interaction model before committing to a full tech stack.",
-        body="Build a rich single-file HTML prototype. Validates all four views quickly without infrastructure.",
-        consequences="Fast iteration. Tech stack decision deferred until UX is validated.",
+        context=(
+            "Need a storage layer that is fast, private, and doesn't require external services. "
+            "The system is personal-scale — one user, hundreds of projects, thousands of resources. "
+            "Data must be human-readable and git-trackable."
+        ),
+        body=(
+            "All data stored as Markdown + JSON files in ~/PRIME. "
+            "No external database for MVP. FileStore service handles all reads and writes. "
+            "PostgreSQL migration planned for Phase 2 when structured querying becomes necessary."
+        ),
+        consequences=(
+            "Human-readable, git-trackable, zero infrastructure dependency. "
+            "Queries are filesystem scans — acceptable at personal scale. "
+            "Will need migration to PostgreSQL before adding multi-device sync or heavy filtering."
+        ),
         alternatives=[
-            Alternative(title="React SPA", reason="Adds build tooling before UX is validated."),
-            Alternative(title="Figma mockup", reason="Not interactive enough to evaluate real feel."),
+            Alternative(title="PostgreSQL from day one", reason="Overkill for personal scale; adds infrastructure before UX is validated."),
+            Alternative(title="SQLite", reason="Better than Postgres for local but schema migrations are friction; plain files are simpler to inspect and edit."),
         ],
-        tags=["frontend", "prototype"],
+        tags=["storage", "architecture", "local-first"],
     ))
 
     store.create_decision(DecisionCreate(
-        project_id=p2.id,
-        title="Bathroom first, kitchen Q4",
-        type=DecisionType.decision,
-        context="Renovating both rooms simultaneously would make the home unlivable.",
-        body="Start with bathroom Q3 2026. Defer kitchen to Q4 budget permitting.",
-        consequences="Kitchen remains functional throughout. Extends overall project timeline.",
+        project_id=prime.id,
+        title="Python/FastAPI backend",
+        type=DecisionType.adr,
+        context=(
+            "Need a backend that can run Claude agent loops async, serve a REST API, "
+            "and handle WebSocket streams for real-time agent events. "
+            "Must be comfortable to extend and not require a build step."
+        ),
+        body=(
+            "FastAPI with asyncio. Runs uvicorn locally. Pydantic v2 for all data models. "
+            "Async-first throughout so agent runs don't block API responses."
+        ),
+        consequences=(
+            "Excellent async story for agent loops. Pydantic validation is free. "
+            "Auto-generated OpenAPI docs. Python means easy access to ML/AI libraries later. "
+            "Not the fastest runtime, but personal-scale traffic makes this irrelevant."
+        ),
         alternatives=[
-            Alternative(title="Both simultaneously", reason="Too disruptive to daily life."),
-            Alternative(title="Kitchen first", reason="Bathroom is more urgently needed."),
+            Alternative(title="Node/Express", reason="Worse async story for long-running agent tasks; smaller ML ecosystem."),
+            Alternative(title="Go", reason="Great performance but slower to iterate; no AI/ML library ecosystem."),
         ],
-        tags=["scope", "timeline"],
+        tags=["backend", "architecture", "python"],
     ))
 
     store.create_decision(DecisionCreate(
-        project_id=p3.id,
-        title="Increase international ETF allocation to 35%",
-        type=DecisionType.decision,
-        context="Portfolio is overweight domestic large-cap. USD concentration risk and valuation gap vs international.",
-        body="Shift 10% from domestic large-cap to VXUS (international developed markets ETF).",
-        consequences="Better geographic diversification. Slightly higher tracking error.",
+        project_id=prime.id,
+        title="HTML prototype before framework commitment",
+        type=DecisionType.adr,
+        context=(
+            "Need to validate all five views and the interaction model before committing "
+            "to a frontend framework and build toolchain."
+        ),
+        body=(
+            "Build a rich single-file HTML prototype (prime-os.html) with D3 for the knowledge graph. "
+            "Wire to live API once backend is stable. Framework decision (React/Svelte) deferred "
+            "until UX is validated and pain points with the HTML prototype are clear."
+        ),
+        consequences=(
+            "Fast iteration, zero build tooling. "
+            "Tech stack decision deferred — may never need a framework at this scale. "
+            "D3 knowledge graph already working; migrating to a component framework later is manageable."
+        ),
         alternatives=[
-            Alternative(title="Add emerging market exposure", reason="Higher volatility, deferred."),
-            Alternative(title="Maintain allocation", reason="Leaves USD concentration risk unaddressed."),
+            Alternative(title="React SPA from the start", reason="Adds build tooling before UX is validated."),
+            Alternative(title="Figma mockup", reason="Not interactive enough to evaluate real feel of data-heavy views."),
         ],
-        tags=["allocation", "etf"],
+        tags=["frontend", "prototype", "architecture"],
     ))
 
-    # ── Todos ─────────────────────────────────────────────────────────
+    # ── Todos — Autonomous SOC ────────────────────────────────────────
 
     for text, prio, section in [
-        ("Design knowledge graph schema (RDF vs property graph)", Priority.high, "In Progress"),
-        ("Choose voice API — Whisper vs Web Speech", Priority.medium, "Up Next"),
-        ("Wire frontend to backend API", Priority.high, "Up Next"),
-        ("Set up file-watching for live graph updates", Priority.medium, "Backlog"),
-        ("Build interactive prototype", Priority.high, "Done"),
+        ("Hands-on evaluation: WatsonX Orchestrate agent-to-agent handoff", Priority.high, "In Progress"),
+        ("Map Tier-1 triage workflow to agent action sequence", Priority.high, "In Progress"),
+        ("Research QRadar SOAR → WatsonX integration options", Priority.high, "Up Next"),
+        ("Build alert triage proof-of-concept (synthetic alerts)", Priority.high, "Up Next"),
+        ("Document ROI model: alert volume, analyst hours saved, MTTR reduction", Priority.medium, "Up Next"),
+        ("Survey MITRE ATT&CK scenarios suitable for autonomous response", Priority.medium, "Backlog"),
+        ("Design integration architecture: SIEM → agents → SOAR", Priority.medium, "Backlog"),
+        ("Create client-facing capability deck", Priority.medium, "Backlog"),
+        ("Identify 2–3 reference clients for early validation", Priority.low, "Backlog"),
     ]:
-        t = store.create_todo(p1.id, TodoCreate(text=text, priority=prio, section=section))
-        if section == "Done":
-            from backend.models.project import TodoUpdate, TodoStatus
-            store.update_todo(p1.id, t.id, TodoUpdate(status=TodoStatus.done))
+        store.create_todo(soc.id, TodoCreate(text=text, priority=prio, section=section))
 
-    for text, prio, section in [
-        ("Review BuildRight final quote", Priority.high, "Immediate"),
-        ("Get permit status from city office", Priority.high, "Immediate"),
-        ("Finalise tile and fixture selection", Priority.medium, "In Progress"),
+    # ── Todos — PRIME OS ──────────────────────────────────────────────
+
+    for text, prio, section, done in [
+        ("Design data models (Pydantic)", Priority.high, "Done", True),
+        ("Build FileStore, GraphEngine, AgentRuntime services", Priority.high, "Done", True),
+        ("FastAPI routers + WebSocket agent stream", Priority.high, "Done", True),
+        ("Interactive HTML prototype — all 5 views", Priority.high, "Done", True),
+        ("Wire prime-os.html to live FastAPI backend", Priority.high, "In Progress", False),
+        ("Confirm knowledge graph renders with real data", Priority.high, "In Progress", False),
+        ("Docker Compose: postgres + backend services", Priority.high, "Up Next", False),
+        ("SQLAlchemy async models + Alembic migrations", Priority.high, "Up Next", False),
+        ("LiteLLM abstraction layer (Claude → Ollama → vLLM)", Priority.medium, "Up Next", False),
+        ("AgentRunner Protocol — swappable agent frameworks", Priority.medium, "Backlog", False),
+        ("News aggregation view (RSS + X feed)", Priority.medium, "Backlog", False),
+        ("IBM pre-sales RAG view (doc ingestion + pgvector)", Priority.medium, "Backlog", False),
+        ("Langfuse observability sidecar", Priority.low, "Backlog", False),
+        ("Voice interface (Web Speech → faster-whisper)", Priority.low, "Backlog", False),
     ]:
-        store.create_todo(p2.id, TodoCreate(text=text, priority=prio, section=section))
+        t = store.create_todo(prime.id, TodoCreate(text=text, priority=prio, section=section))
+        if done:
+            store.update_todo(prime.id, t.id, TodoUpdate(status=TodoStatus.done))
 
-    for text, prio, section in [
-        ("Execute VXUS purchase order", Priority.high, "This Week"),
-        ("Configure auto-rebalance rules", Priority.medium, "This Month"),
-    ]:
-        store.create_todo(p3.id, TodoCreate(text=text, priority=prio, section=section))
+    # ── Concepts — Autonomous SOC ─────────────────────────────────────
 
-    # ── Concepts ──────────────────────────────────────────────────────
+    store.create_concept(soc.id, "Alert fatigue",
+        "SOC analysts overwhelmed by alert volume — majority are false positives. "
+        "The core problem autonomous SOC solves.")
+    store.create_concept(soc.id, "Tier-1 triage",
+        "First-pass alert investigation: enrich, classify, escalate or auto-close. "
+        "Highest volume, most automatable SOC task.")
+    store.create_concept(soc.id, "Agentic SOC",
+        "Multiple AI agents handling distinct investigation tasks — enrichment, "
+        "classification, response — coordinated by an orchestration layer.")
+    store.create_concept(soc.id, "MITRE ATT&CK",
+        "Framework classifying adversary tactics and techniques. "
+        "Used to map alert types to automated response playbooks.")
+    store.create_concept(soc.id, "MTTR",
+        "Mean Time to Respond — primary KPI for SOC automation ROI. "
+        "Autonomous triage can reduce MTTR from hours to minutes for Tier-1 alerts.")
 
-    store.create_concept(p1.id, "Decision archaeology", "Every choice recorded with alternatives, fully queryable later.")
-    store.create_concept(p1.id, "Local-first", "Data lives in files. No cloud lock-in.")
-    store.create_concept(p1.id, "Knowledge graph", "Entities linked by semantic edges, visualised and navigable.")
-    store.create_concept(p2.id, "Wet room design", "Open shower without enclosure — modern and minimalist.")
-    store.create_concept(p3.id, "Factor investing", "Tilt toward value and small-cap for long-term premium.")
+    # ── Concepts — PRIME OS ───────────────────────────────────────────
 
-    # ── Resources ─────────────────────────────────────────────────────
+    store.create_concept(prime.id, "Local-first",
+        "Data lives in files on your machine. No cloud dependency, no lock-in, git-trackable.")
+    store.create_concept(prime.id, "Knowledge graph",
+        "Entities (projects, resources, decisions) linked by semantic edges. "
+        "Visualised with D3 force simulation.")
+    store.create_concept(prime.id, "Decision archaeology",
+        "Every significant choice recorded with context, alternatives, and consequences. "
+        "Queryable years later.")
+    store.create_concept(prime.id, "AgentRunner Protocol",
+        "Thin Python Protocol interface over agent frameworks — swapping Claude for "
+        "Ollama or LangGraph requires only a config change.")
 
-    a1 = store.create_resource(ResourceCreate(
-        type=ResourceType.article, title="Building a Second Brain — Tiago Forte",
-        description="Framework for capturing and organising knowledge externally.",
+    # ── Resources — Autonomous SOC ────────────────────────────────────
+
+    soc_r1 = store.create_resource(ResourceCreate(
+        type=ResourceType.article,
+        title="The Case for Autonomous Security Operations",
+        description="Overview of how agentic AI changes the SOC model — from reactive to autonomous. Key framing for client conversations.",
+        project_ids=[soc.id],
+        tags=["soc", "autonomous", "ai", "framing"],
+    ))
+    soc_r2 = store.create_resource(ResourceCreate(
+        type=ResourceType.article,
+        title="WatsonX Orchestrate: Enterprise Agentic Workflows",
+        description="IBM's documentation and positioning for WatsonX Orchestrate — agent skills, tool integration, multi-agent coordination.",
+        source_url="https://www.ibm.com/products/watsonx-orchestrate",
+        project_ids=[soc.id],
+        tags=["watsonx", "orchestrate", "ibm", "agentic"],
+    ))
+    soc_r3 = store.create_resource(ResourceCreate(
+        type=ResourceType.article,
+        title="LangGraph vs WatsonX Orchestrate for Security Automation",
+        description="Technical comparison of LangGraph's state machine model vs WatsonX Orchestrate's skill-based approach for multi-agent security workflows.",
+        project_ids=[soc.id],
+        tags=["langgraph", "watsonx", "comparison", "agentic"],
+    ))
+    soc_n1 = store.create_resource(ResourceCreate(
+        type=ResourceType.note,
+        title="SOC Demo Architecture — Initial Thoughts",
+        description="Working notes on the demo flow: synthetic alert ingestion → enrichment agent → classifier → analyst brief output.",
+        project_ids=[soc.id],
+        tags=["architecture", "demo", "design"],
+        content=(
+            "# SOC Demo Architecture\n\n"
+            "## Demo flow\n"
+            "1. Ingest synthetic SIEM alert (JSON payload simulating QRadar offense)\n"
+            "2. **Enrichment agent** — queries threat intel (VirusTotal, AbuseIPDB) for IPs/domains\n"
+            "3. **Classifier agent** — scores alert: true positive / false positive / needs escalation\n"
+            "4. **Brief writer** — produces structured investigation summary for Tier-2 analyst\n"
+            "5. Auto-close false positives; route true positives to ticketing\n\n"
+            "## Open questions\n"
+            "- WatsonX Orchestrate: can agents call external APIs natively via skills?\n"
+            "- How to handle agent-to-agent handoff state? Does WO have shared context?\n"
+            "- QRadar SOAR integration: webhook-based or REST polling?\n\n"
+            "## Tools agents need\n"
+            "- `query_threat_intel(ip, domain)` → enrichment data\n"
+            "- `get_alert_details(alert_id)` → full alert from SIEM\n"
+            "- `classify_alert(enriched_data)` → verdict + confidence\n"
+            "- `create_investigation_brief(alert, enrichment, verdict)` → Markdown brief\n"
+            "- `close_alert(alert_id, reason)` → write back to SIEM/SOAR\n"
+        ),
+    ))
+    soc_n2 = store.create_resource(ResourceCreate(
+        type=ResourceType.note,
+        title="WatsonX Orchestrate Evaluation Checklist",
+        description="What to test during hands-on WatsonX Orchestrate evaluation — agent chaining, external APIs, latency, error handling.",
+        project_ids=[soc.id],
+        tags=["watsonx", "evaluation", "checklist"],
+        content=(
+            "# WatsonX Orchestrate Evaluation\n\n"
+            "## What to test\n"
+            "- [ ] Create a custom skill that calls an external REST API\n"
+            "- [ ] Chain two agents: enrichment → classifier\n"
+            "- [ ] Inspect shared context between agent invocations\n"
+            "- [ ] Latency: how long does a 3-agent chain take end-to-end?\n"
+            "- [ ] Error handling: what happens when a skill fails mid-chain?\n"
+            "- [ ] Can agents write structured output (JSON) vs free text?\n\n"
+            "## Notes\n"
+            "*(to be filled during evaluation)*\n"
+        ),
+    ))
+    soc_a1 = store.create_resource(ResourceCreate(
+        type=ResourceType.artifact,
+        title="Autonomous SOC Capability Deck v0.1",
+        description="Client-facing presentation: problem statement, solution architecture, demo flow, ROI model.",
+        project_ids=[soc.id],
+        tags=["presentation", "client", "capability"],
+    ))
+
+    # ── Resources — PRIME OS ──────────────────────────────────────────
+
+    prime_r1 = store.create_resource(ResourceCreate(
+        type=ResourceType.article,
+        title="Building a Second Brain — Tiago Forte",
+        description="Framework for externalising knowledge into a trusted system. Core inspiration for PRIME's knowledge model.",
         source_url="https://www.buildingasecondbrain.com",
-        project_ids=[p1.id], tags=["knowledge-management", "productivity"],
-        content="# Building a Second Brain\n\nCore idea: offload knowledge from your head into a trusted external system...",
+        project_ids=[prime.id],
+        tags=["knowledge-management", "pkm", "inspiration"],
+        content=(
+            "# Building a Second Brain\n\n"
+            "Core idea: offload knowledge from your head into a trusted external system. "
+            "Capture → Organise → Distil → Express.\n\n"
+            "**Relevance to PRIME:** The knowledge graph + resource system is PRIME's "
+            "implementation of this — with agents that actively build and connect the graph."
+        ),
     ))
-    a2 = store.create_resource(ResourceCreate(
-        type=ResourceType.article, title="RDF vs Property Graph for Personal Knowledge",
-        description="Trade-off analysis of graph data models at personal scale.",
-        project_ids=[p1.id], tags=["knowledge-graph", "database", "architecture"],
-        content="# RDF vs Property Graph\n\n## RDF\nStandards-compliant, SPARQL queryable...\n\n## Property Graph\nSimpler, local tooling (NetworkX, Neo4j)...",
+    prime_r2 = store.create_resource(ResourceCreate(
+        type=ResourceType.article,
+        title="Local-first Software — Kleppmann et al.",
+        description="Academic case for keeping data on user devices with sync as a feature, not a requirement. Underpins PRIME's file-first architecture.",
+        source_url="https://www.inkandswitch.com/local-first/",
+        project_ids=[prime.id],
+        tags=["local-first", "architecture", "data"],
     ))
-    a3 = store.create_resource(ResourceCreate(
-        type=ResourceType.article, title="International ETF Diversification 2026 — Morningstar",
-        description="Analysis of geographic diversification benefits for retail investors.",
-        source_url="https://morningstar.com",
-        project_ids=[p3.id], tags=["investing", "etf", "diversification"],
+    prime_n1 = store.create_resource(ResourceCreate(
+        type=ResourceType.note,
+        title="Phase 1 API Wiring — Plan",
+        description="What needs to change in prime-os.html to call the live FastAPI backend instead of returning hardcoded data.",
+        project_ids=[prime.id],
+        tags=["frontend", "api", "plan"],
+        content=(
+            "# Frontend API Wiring Plan\n\n"
+            "## Endpoints to wire\n"
+            "| View | Current | Target |\n"
+            "|------|---------|--------|\n"
+            "| Projects | Hardcoded JS array | `GET /api/projects` |\n"
+            "| Project detail | Hardcoded | `GET /api/projects/{id}` |\n"
+            "| Knowledge graph | Hardcoded nodes/edges | `GET /api/graph` |\n"
+            "| Agents | Hardcoded cards | `GET /api/agents` |\n"
+            "| Agent runs | Static log | `WS /api/agents/ws` |\n\n"
+            "## Loading states\n"
+            "Each view needs a spinner while data loads. "
+            "Graph needs to handle empty state gracefully.\n\n"
+            "## Error handling\n"
+            "If backend is not running, show a 'Backend offline' banner "
+            "rather than a broken UI.\n"
+        ),
     ))
-    a4 = store.create_resource(ResourceCreate(
-        type=ResourceType.article, title="Wet Room Design Guide",
-        description="Design principles and waterproofing requirements for wet rooms.",
-        project_ids=[p2.id], tags=["renovation", "bathroom", "design"],
+    prime_n2 = store.create_resource(ResourceCreate(
+        type=ResourceType.note,
+        title="PRIME OS Roadmap",
+        description="Prioritised development sequence — what to build in what order and why.",
+        project_ids=[prime.id],
+        tags=["roadmap", "planning"],
+        content=(
+            "# PRIME OS Roadmap\n\n"
+            "## Phase 1 — Make it run (current)\n"
+            "Wire frontend to live API. Confirm knowledge graph renders with real data.\n\n"
+            "## Phase 2 — Docker + PostgreSQL\n"
+            "docker-compose.yml, SQLAlchemy async models, Alembic migrations.\n\n"
+            "## Phase 3 — LiteLLM + real agents\n"
+            "Replace hardcoded Anthropic SDK with LiteLLM. AgentRunner Protocol. "
+            "Agents actually do work.\n\n"
+            "## Phase 4 — News view\n"
+            "RSS aggregation, curated AI/tech sources, background polling task.\n\n"
+            "## Phase 5 — IBM pre-sales RAG\n"
+            "Document ingestion (URL + PDF), pgvector, RAG query endpoint.\n\n"
+            "## Phase 6 — Advanced\n"
+            "Langfuse, voice interface, multi-agent orchestration.\n"
+        ),
     ))
-
-    n1 = store.create_resource(ResourceCreate(
-        type=ResourceType.note, title="Voice Interface Brainstorm",
-        description="Ideas for wake word, ambient mode, and response personality.",
-        project_ids=[p1.id], tags=["voice", "ux"],
-        content="# Voice Interface Ideas\n\n- Wake word: 'Hey Prime'\n- Ambient mode: always listening, low power\n- Response style: concise by default, verbose on request\n- Show waveform during speaking\n",
-    ))
-    n2 = store.create_resource(ResourceCreate(
-        type=ResourceType.note, title="Contractor Meeting Notes — BuildRight Co.",
-        description="Site visit notes from May 3 2026.",
-        project_ids=[p2.id], tags=["contractor", "renovation"],
-        content="# BuildRight Site Visit — May 3 2026\n\n- Team of 4, estimated 6-week timeline\n- Quote: €18,400 incl. materials\n- References: 3 provided, all checked out positive\n",
-    ))
-    n3 = store.create_resource(ResourceCreate(
-        type=ResourceType.note, title="Q2 Rebalancing Plan",
-        description="Step-by-step execution plan for the Q2 portfolio rebalance.",
-        project_ids=[p3.id], tags=["portfolio", "rebalancing"],
-        content="# Q2 Rebalancing Steps\n\n1. Sell 10% domestic large-cap (SPY)\n2. Buy VXUS equivalent\n3. Set drift threshold to ±5%\n4. Review bond allocation\n",
-    ))
-
-    pdf1 = store.create_resource(ResourceCreate(
-        type=ResourceType.pdf, title="BuildRight Co. Final Quote",
-        description="€18,400 — 6-week timeline. Received May 7 2026.",
-        project_ids=[p2.id], tags=["contractor", "quote", "renovation"],
-    ))
-    pdf2 = store.create_resource(ResourceCreate(
-        type=ResourceType.pdf, title="Q1 2026 Performance Report",
-        description="+8.2% vs MSCI World benchmark +6.1%.",
-        project_ids=[p3.id], tags=["portfolio", "performance"],
-    ))
-
-    v1 = store.create_resource(ResourceCreate(
-        type=ResourceType.video, title="WWDC 2025 — Designing for Voice",
-        description="SwiftUI speech patterns and voice-first UI design session.",
-        source_url="https://developer.apple.com/wwdc25",
-        project_ids=[p1.id], tags=["voice", "ux", "apple"],
-    ))
-    v2 = store.create_resource(ResourceCreate(
-        type=ResourceType.video, title="Factor Investing Explained — Ben Felix",
-        description="Common Sense Investing: value, profitability, and size premiums.",
-        source_url="https://youtube.com",
-        project_ids=[p3.id], tags=["investing", "factors"],
-    ))
-
-    art1 = store.create_resource(ResourceCreate(
-        type=ResourceType.artifact, title="UI Mockup v1",
-        description="All four PRIME views sketched as interactive prototype.",
-        project_ids=[p1.id], tags=["design", "prototype"],
-    ))
-    art2 = store.create_resource(ResourceCreate(
-        type=ResourceType.artifact, title="ADR Log",
-        description="All architectural decisions with alternatives considered.",
-        project_ids=[p1.id], tags=["decisions", "architecture"],
-    ))
-    art3 = store.create_resource(ResourceCreate(
-        type=ResourceType.artifact, title="Budget Tracker — Renovation",
-        description="Excel tracker for renovation costs vs €45k cap.",
-        project_ids=[p2.id], tags=["budget", "renovation"],
+    prime_a1 = store.create_resource(ResourceCreate(
+        type=ResourceType.artifact,
+        title="PRIME Architecture Diagram",
+        description="System diagram: frontend ↔ FastAPI ↔ FileStore + GraphEngine + AgentRuntime ↔ Claude API.",
+        project_ids=[prime.id],
+        tags=["architecture", "design"],
     ))
 
-    # ── Extra edges (cross-project, resource→resource) ────────────────
+    # ── Edges ─────────────────────────────────────────────────────────
 
-    # Note cites the article it references
-    store.create_edge(EdgeCreate(from_id=n1.id, to_id=a1.id, relation=RelationType.references,  note="Voice brainstorm references BASB"))
-    store.create_edge(EdgeCreate(from_id=n1.id, to_id=v1.id, relation=RelationType.references,  note="WWDC session informed voice design"))
-    store.create_edge(EdgeCreate(from_id=art2.id, to_id=a2.id, relation=RelationType.cites,     note="ADR Log cites RDF research"))
-    store.create_edge(EdgeCreate(from_id=n3.id, to_id=a3.id, relation=RelationType.references,  note="Rebalancing plan references Morningstar analysis"))
-    store.create_edge(EdgeCreate(from_id=a2.id, to_id=n1.id, relation=RelationType.related_to,  note="Graph schema decision affects voice data model"))
+    store.create_edge(EdgeCreate(
+        from_id=soc_n1.id, to_id=soc_r2.id,
+        relation=RelationType.references,
+        note="Demo architecture depends on WatsonX Orchestrate capabilities",
+    ))
+    store.create_edge(EdgeCreate(
+        from_id=soc_n2.id, to_id=soc_r3.id,
+        relation=RelationType.references,
+        note="Evaluation checklist informed by LangGraph vs WatsonX comparison",
+    ))
+    store.create_edge(EdgeCreate(
+        from_id=soc_a1.id, to_id=soc_r1.id,
+        relation=RelationType.cites,
+        note="Capability deck opens with the autonomous SOC framing article",
+    ))
+    store.create_edge(EdgeCreate(
+        from_id=prime_n2.id, to_id=prime_n1.id,
+        relation=RelationType.references,
+        note="Roadmap Phase 1 details are in the API wiring plan note",
+    ))
+    store.create_edge(EdgeCreate(
+        from_id=prime_a1.id, to_id=prime_r2.id,
+        relation=RelationType.cites,
+        note="Architecture decisions grounded in local-first software principles",
+    ))
 
     # ── Agents ────────────────────────────────────────────────────────
 
     store.create_agent(AgentCreate(
         name="Research", role=AgentRole.research, emoji="🔍",
-        description="Gathers information, synthesises sources, saves findings.",
-        tools=[AgentTool.web_search, AgentTool.write_resource, AgentTool.read_resource,
-               AgentTool.create_note, AgentTool.link_resources, AgentTool.list_projects],
+        description="Gathers information, synthesises sources, saves structured research briefs to the knowledge base.",
+        tools=[
+            AgentTool.web_search, AgentTool.write_resource, AgentTool.read_resource,
+            AgentTool.create_note, AgentTool.link_resources, AgentTool.list_projects,
+        ],
     ))
     store.create_agent(AgentCreate(
         name="Writer", role=AgentRole.writer, emoji="✍️",
-        description="Writes documents, ADRs, summaries, and briefs.",
-        tools=[AgentTool.read_resource, AgentTool.write_resource, AgentTool.create_decision,
-               AgentTool.read_project, AgentTool.list_projects],
+        description="Writes ADRs, capability briefs, summaries, and LinkedIn posts. Reads existing resources before writing.",
+        tools=[
+            AgentTool.read_resource, AgentTool.write_resource, AgentTool.create_decision,
+            AgentTool.read_project, AgentTool.list_projects,
+        ],
     ))
     store.create_agent(AgentCreate(
         name="Analyst", role=AgentRole.analyst, emoji="📊",
-        description="Analyses data and produces structured reports.",
-        tools=[AgentTool.read_resource, AgentTool.write_resource, AgentTool.read_project,
-               AgentTool.create_note],
+        description="Analyses data, compares options, produces structured reports with clear recommendations.",
+        tools=[
+            AgentTool.read_resource, AgentTool.write_resource,
+            AgentTool.read_project, AgentTool.create_note,
+        ],
     ))
     store.create_agent(AgentCreate(
         name="Monitor", role=AgentRole.monitor, emoji="👁️",
-        description="Watches sources and surfaces important changes.",
+        description="Watches sources and surfaces only what's relevant — new releases, competitive moves, research worth reading.",
         tools=[AgentTool.web_search, AgentTool.create_note, AgentTool.read_project],
     ))
 
     print("\n✅ Seed complete.")
-    print(f"   Projects: 3")
-    print(f"   Resources: articles×4, notes×3, pdfs×2, videos×2, artifacts×3")
+    print(f"   Projects: Autonomous SOC (capability), PRIME OS (personal)")
+    print(f"   Resources: 6 SOC + 5 PRIME = 11 total")
     print(f"   Agents: Research, Writer, Analyst, Monitor")
-    print(f"\nStart the server with:")
-    print(f"   cd {Path(__file__).parent.parent}")
+    print(f"\nStart the server:")
     print(f"   uvicorn backend.main:app --host 127.0.0.1 --port 7474 --reload")
 
 

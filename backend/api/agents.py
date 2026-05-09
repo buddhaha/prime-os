@@ -1,5 +1,4 @@
 """Agent management endpoints + WebSocket for real-time events."""
-from __future__ import annotations
 
 import asyncio
 import json

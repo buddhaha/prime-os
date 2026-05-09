@@ -11,7 +11,6 @@ On disk layout:
     videos/             ← metadata + transcript (.md)
     artifacts/          ← design files, exports, code, etc.
 """
-from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum

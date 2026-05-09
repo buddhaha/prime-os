@@ -7,7 +7,6 @@ Optional:  PRIME_WORKSPACE  (default: ~/PRIME)
            PRIME_PORT       (default: 7474)
            PRIME_HOST       (default: 127.0.0.1)
 """
-from __future__ import annotations
 
 import os
 from pathlib import Path
@@ -19,6 +18,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
+        env_prefix="PRIME_",
         extra="ignore",
     )
 
@@ -40,9 +40,5 @@ class Settings(BaseSettings):
         p = Path(self.workspace).expanduser().resolve()
         p.mkdir(parents=True, exist_ok=True)
         return p
-
-    class Config:
-        env_prefix = "PRIME_"
-
 
 settings = Settings()

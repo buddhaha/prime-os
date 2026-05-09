@@ -18,7 +18,6 @@ Tool inventory (what agents can do):
   read_project(project_id)       — get project details + decisions + todos
   web_search(query)              — lightweight web search via DuckDuckGo
 """
-from __future__ import annotations
 
 import asyncio
 import json

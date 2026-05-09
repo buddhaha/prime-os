@@ -2,7 +2,6 @@
 FastAPI dependency injectors.
 Single instances shared across all requests (app-level singletons).
 """
-from __future__ import annotations
 
 from functools import lru_cache
 

@@ -9,9 +9,8 @@ On disk layout:
     todos.json            ← list of Todo objects
     concepts.json         ← list of {name, desc} dicts
 """
-from __future__ import annotations
 
-from datetime import date
+from datetime import date as Date
 from enum import Enum
 from typing import Any
 
@@ -27,6 +26,13 @@ class ProjectStatus(str, Enum):
     planning = "planning"
     on_hold  = "on_hold"
     archived = "archived"
+
+
+class ProjectType(str, Enum):
+    personal    = "personal"    # Side project, learning, experiments
+    capability  = "capability"  # IBM offering/demo being built out
+    opportunity = "opportunity" # Active client deal or engagement
+    knowledge   = "knowledge"   # Persistent reference area (product knowledge, certifications)
 
 
 class DecisionType(str, Enum):
@@ -61,15 +67,16 @@ class Priority(str, Enum):
 
 class Project(BaseModel):
     """Stored as ~/PRIME/projects/{id}/project.json"""
-    id:          str
-    name:        str
-    emoji:       str   = "📁"
-    description: str   = ""
-    color:       str   = "#00d4ff"
-    status:      ProjectStatus = ProjectStatus.active
-    tags:        list[str]     = Field(default_factory=list)
-    created:     date          = Field(default_factory=date.today)
-    updated:     date          = Field(default_factory=date.today)
+    id:           str
+    name:         str
+    emoji:        str   = "📁"
+    description:  str   = ""
+    color:        str   = "#00d4ff"
+    status:       ProjectStatus = ProjectStatus.active
+    project_type: ProjectType   = ProjectType.personal
+    tags:         list[str]     = Field(default_factory=list)
+    created: Date = Field(default_factory=Date.today)
+    updated: Date = Field(default_factory=Date.today)
 
     # Derived — populated by FileStore, not stored in project.json
     decision_count: int = 0
@@ -79,12 +86,13 @@ class Project(BaseModel):
 
 
 class ProjectCreate(BaseModel):
-    name:        str
-    emoji:       str  = "📁"
-    description: str  = ""
-    color:       str  = "#00d4ff"
-    status:      ProjectStatus = ProjectStatus.active
-    tags:        list[str]     = Field(default_factory=list)
+    name:         str
+    emoji:        str  = "📁"
+    description:  str  = ""
+    color:        str  = "#00d4ff"
+    status:       ProjectStatus = ProjectStatus.active
+    project_type: ProjectType   = ProjectType.personal
+    tags:         list[str]     = Field(default_factory=list)
 
 
 # ─────────────────────────────────────────────
@@ -109,7 +117,7 @@ class Decision(BaseModel):
     id:           str
     project_id:   str
     title:        str
-    date:         date = Field(default_factory=date.today)
+    date: Date = Field(default_factory=Date.today)
     type:         DecisionType   = DecisionType.decision
     status:       DecisionStatus = DecisionStatus.accepted
     context:      str = ""
@@ -149,8 +157,8 @@ class Todo(BaseModel):
     priority:   Priority   = Priority.medium
     section:    str        = "Backlog"   # e.g. "In Progress", "Up Next"
     tags:       list[str]  = Field(default_factory=list)
-    created:    date       = Field(default_factory=date.today)
-    completed:  date | None = None
+    created: Date = Field(default_factory=Date.today)
+    completed:  Date | None = None
 
 
 class TodoCreate(BaseModel):
