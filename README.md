@@ -34,6 +34,41 @@ Full architecture: see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Quick start
 
+### Docker (recommended)
+
+```bash
+# 1. Seed example data into ~/PRIME (one-time setup)
+pip install -r requirements.txt
+python -m backend.seed
+
+# 2. Start
+docker compose up
+
+# 3. Open
+open http://localhost:7474
+```
+
+The API key is optional — projects, graph, and resources all work without one. Agents require it.
+
+```bash
+# With an API key (enables agent execution)
+ANTHROPIC_API_KEY=sk-ant-... docker compose up
+
+# Or put it in .env first
+cp .env.example .env   # then edit .env
+docker compose up
+```
+
+To use a different data directory:
+
+```bash
+PRIME_DATA_DIR=/path/to/your/PRIME docker compose up
+```
+
+---
+
+### Local (Python)
+
 ```bash
 # 1. Create and activate a virtual environment
 python -m venv .venv
@@ -44,7 +79,7 @@ pip install -r requirements.txt
 
 # 3. Configure
 cp .env.example .env
-# Edit .env — set ANTHROPIC_API_KEY at minimum
+# Edit .env — add ANTHROPIC_API_KEY if you want to run agents
 
 # 4. Seed example data (creates ~/PRIME/ with sample projects)
 python -m backend.seed
@@ -54,7 +89,6 @@ uvicorn backend.main:app --host 127.0.0.1 --port 7474 --reload
 
 # 6. Open the frontend
 open http://127.0.0.1:7474
-# Or open prime-os.html directly in your browser
 ```
 
 ---
@@ -104,8 +138,9 @@ See [skills/README.md](skills/README.md) for details.
 
 | Phase | What | Status |
 |-------|------|--------|
-| 1 | Frontend wired to live API | Next |
-| 2 | Docker Compose + PostgreSQL | Planned |
+| 1 | Frontend wired to live API | ✅ Done |
+| 2 | Docker Compose | ✅ Done |
+| 3 | PostgreSQL (replace file store) | Planned |
 | 3 | LiteLLM abstraction (Claude → Ollama → vLLM) | Planned |
 | 4 | News view (RSS + X feed aggregation) | Planned |
 | 5 | IBM pre-sales RAG view (doc ingestion + pgvector) | Planned |
@@ -117,7 +152,7 @@ See [skills/README.md](skills/README.md) for details.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ANTHROPIC_API_KEY` | — | **Required.** Your Anthropic API key |
+| `ANTHROPIC_API_KEY` | — | Optional. Required only to run agents |
 | `PRIME_WORKSPACE` | `~/PRIME` | Where PRIME stores all data |
 | `PRIME_HOST` | `127.0.0.1` | Server bind address |
 | `PRIME_PORT` | `7474` | Server port |
