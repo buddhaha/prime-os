@@ -1,12 +1,10 @@
 """Knowledge graph endpoints."""
 
-import asyncio
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..models.graph import GraphData, GraphNode
 from ..models.resource import Resource, ResourceCreate, ResourceUpdate, Edge, EdgeCreate
-from ..services.file_store import FileStore
+from ..services.db_store import DBStore
 from ..services.graph_engine import GraphEngine
 from ..dependencies import get_store, get_graph
 
@@ -17,7 +15,6 @@ router = APIRouter(prefix="/api", tags=["graph"])
 
 @router.get("/graph", response_model=GraphData)
 async def get_graph(graph: GraphEngine = Depends(get_graph)):
-    """Return the full knowledge graph for the frontend visualisation."""
     return graph.get_graph()
 
 
@@ -32,7 +29,6 @@ async def get_node_neighborhood(
     depth: int = Query(1, ge=1, le=3),
     graph: GraphEngine = Depends(get_graph),
 ):
-    """Return the subgraph within `depth` hops of a node."""
     return graph.neighbors(node_id, depth=depth)
 
 
@@ -48,36 +44,19 @@ async def search_graph(
 
 @router.get("/resources", response_model=list[Resource])
 async def list_resources(
-    type: str | None = None,
     project_id: str | None = None,
-    store: FileStore = Depends(get_store),
+    store: DBStore = Depends(get_store),
 ):
-    return await asyncio.to_thread(store.list_resources, type, project_id)
-
-
-@router.get("/resources/{resource_id}", response_model=Resource)
-async def get_resource(resource_id: str, store: FileStore = Depends(get_store)):
-    r = await asyncio.to_thread(store.get_resource, resource_id)
-    if not r:
-        raise HTTPException(status_code=404, detail="Resource not found")
-    return r
-
-
-@router.get("/resources/{resource_id}/content")
-async def get_resource_content(resource_id: str, store: FileStore = Depends(get_store)):
-    content = await asyncio.to_thread(store.read_resource_content, resource_id)
-    if content is None:
-        raise HTTPException(status_code=404, detail="No content for this resource")
-    return {"content": content}
+    return await store.list_resources(project_id=project_id)
 
 
 @router.post("/resources", response_model=Resource, status_code=201)
 async def create_resource(
     data: ResourceCreate,
-    store: FileStore  = Depends(get_store),
-    graph: GraphEngine = Depends(get_graph),
+    store: DBStore      = Depends(get_store),
+    graph: GraphEngine  = Depends(get_graph),
 ):
-    resource = await asyncio.to_thread(store.create_resource, data)
+    resource = await store.create_resource(data)
     graph.add_resource(resource)
     return resource
 
@@ -86,9 +65,9 @@ async def create_resource(
 async def update_resource(
     resource_id: str,
     data: ResourceUpdate,
-    store: FileStore = Depends(get_store),
+    store: DBStore = Depends(get_store),
 ):
-    r = await asyncio.to_thread(store.update_resource, resource_id, data)
+    r = await store.update_resource(resource_id, data)
     if not r:
         raise HTTPException(status_code=404, detail="Resource not found")
     return r
@@ -97,26 +76,16 @@ async def update_resource(
 # ── Edges ──────────────────────────────────────
 
 @router.get("/graph/edges", response_model=list[Edge])
-async def list_edges(store: FileStore = Depends(get_store)):
-    return await asyncio.to_thread(store.list_edges)
+async def list_edges(store: DBStore = Depends(get_store)):
+    return await store.list_edges()
 
 
 @router.post("/graph/edges", response_model=Edge, status_code=201)
 async def create_edge(
     data: EdgeCreate,
-    store: FileStore  = Depends(get_store),
-    graph: GraphEngine = Depends(get_graph),
+    store: DBStore      = Depends(get_store),
+    graph: GraphEngine  = Depends(get_graph),
 ):
-    edge = await asyncio.to_thread(store.create_edge, data)
+    edge = await store.create_edge(data)
     graph.add_edge(edge)
     return edge
-
-
-@router.delete("/graph/edges/{edge_id}", status_code=204)
-async def delete_edge(
-    edge_id: str,
-    store: FileStore  = Depends(get_store),
-):
-    ok = await asyncio.to_thread(store.delete_edge, edge_id)
-    if not ok:
-        raise HTTPException(status_code=404, detail="Edge not found")

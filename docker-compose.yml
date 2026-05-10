@@ -1,33 +1,54 @@
 services:
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       prime
+      POSTGRES_USER:     prime
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-prime_dev}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"          # expose for local psql / pgAdmin if needed
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prime -d prime"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   prime:
     build: .
     ports:
       - "7474:7474"
     environment:
-      # Optional — only needed to run agents. Projects, graph, and resources work without it.
-      # Set in .env or inline: ANTHROPIC_API_KEY=sk-ant-... docker compose up
+      # Optional — only needed to run agents.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      PRIME_WORKSPACE: /data
+      DATABASE_URL: postgresql+asyncpg://prime:${POSTGRES_PASSWORD:-prime_dev}@db:5432/prime
     volumes:
-      # Persists all PRIME data (projects, knowledge, runs) on the host
-      - ${PRIME_DATA_DIR:-~/PRIME}:/data
-      # Mount source so changes to code and frontend are picked up without rebuilding
+      # Mount source so code and frontend changes are live without rebuilding
       - ./backend:/app/backend
       - ./prime-os.html:/app/prime-os.html
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:7474/api/health')"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 10s
-    # Auto-seeds on first boot if /data is empty — no manual step needed.
+      start_period: 15s
 
-  # Manual seed: docker compose run seed
+  # Manual seed: docker-compose run seed
   seed:
     build: .
     command: python -m backend.seed
     environment:
-      PRIME_WORKSPACE: /data
-    volumes:
-      - ${PRIME_DATA_DIR:-~/PRIME}:/data
+      DATABASE_URL: postgresql+asyncpg://prime:${POSTGRES_PASSWORD:-prime_dev}@db:5432/prime
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

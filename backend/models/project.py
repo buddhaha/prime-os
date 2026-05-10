@@ -180,8 +180,14 @@ class TodoUpdate(BaseModel):
 # ─────────────────────────────────────────────
 
 class Concept(BaseModel):
-    """Stored as items in ~/PRIME/projects/{project_id}/concepts.json"""
-    id:   str
+    id:         str
+    project_id: str
+    name:       str
+    desc:       str = ""
+    tags:       list[str] = Field(default_factory=list)
+
+
+class ConceptCreate(BaseModel):
     name: str
     desc: str = ""
     tags: list[str] = Field(default_factory=list)
