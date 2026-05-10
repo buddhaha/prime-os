@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PRIME OS — Personal Intelligence System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <style>
   :root {
@@ -31,7 +34,7 @@
   body {
     background: var(--bg);
     color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
     height: 100vh;
     overflow: hidden;
     display: grid;
@@ -446,7 +449,7 @@
   .doc-card:hover { border-color: var(--cyan-dim); transform: translateY(-2px); }
   .doc-card-link { cursor: pointer; }
   .doc-card-link:hover { border-color: var(--cyan); }
-  .doc-icon { font-size: 30px; margin-bottom: 9px; }
+  .doc-icon { font-size: 10px; font-weight: 600; letter-spacing: .1em; color: var(--cyan); background: rgba(0,212,255,.08); border: 1px solid rgba(0,212,255,.2); border-radius: 4px; padding: 3px 7px; margin-bottom: 10px; display: inline-block; }
   .doc-name { font-size: 12px; font-weight: 500; margin-bottom: 4px; }
   .doc-meta { font-size: 10px; color: var(--text-dim); }
 
@@ -787,7 +790,7 @@
 
       <!-- Focus -->
       <div class="card focus-card">
-        <div class="greeting">Good morning, <em>Mirek</em> ⚡</div>
+        <div class="greeting">Good morning, <em>Mirek</em></div>
         <div class="subline">3 priority tasks · 2 active projects · 1 pending decision</div>
         <div class="task-list">
           <div class="task-item done" onclick="toggleTask(this)">
@@ -818,35 +821,35 @@
         <div class="card-label">Recent Activity</div>
         <div class="activity-feed">
           <div class="activity-item">
-            <div class="activity-icon" style="background:rgba(0,212,255,.08)">🏗️</div>
+            <div class="activity-icon" style="background:rgba(0,212,255,.08);font-size:10px;font-weight:600;letter-spacing:.05em">ADR</div>
             <div>
               <div class="activity-title">ADR-002: HTML-first prototype approach chosen</div>
               <div class="activity-time">2 h ago · AI Project</div>
             </div>
           </div>
           <div class="activity-item">
-            <div class="activity-icon" style="background:rgba(16,185,129,.08)">✅</div>
+            <div class="activity-icon" style="background:rgba(16,185,129,.08);font-size:10px;font-weight:600;letter-spacing:.05em">DONE</div>
             <div>
               <div class="activity-title">Task completed: Initial wireframes</div>
               <div class="activity-time">Yesterday · AI Project</div>
             </div>
           </div>
           <div class="activity-item">
-            <div class="activity-icon" style="background:rgba(245,158,11,.08)">🏠</div>
+            <div class="activity-icon" style="background:rgba(245,158,11,.08);font-size:10px;font-weight:600;letter-spacing:.05em">DOC</div>
             <div>
               <div class="activity-title">Doc added: BuildRight Co. quote</div>
               <div class="activity-time">2 days ago · Home</div>
             </div>
           </div>
           <div class="activity-item">
-            <div class="activity-icon" style="background:rgba(59,130,246,.08)">📊</div>
+            <div class="activity-icon" style="background:rgba(59,130,246,.08);font-size:10px;font-weight:600;letter-spacing:.05em">DEC</div>
             <div>
               <div class="activity-title">Decision: Shift 10% to VXUS (intl ETF)</div>
               <div class="activity-time">3 days ago · Portfolio</div>
             </div>
           </div>
           <div class="activity-item">
-            <div class="activity-icon" style="background:rgba(139,92,246,.08)">💡</div>
+            <div class="activity-icon" style="background:rgba(139,92,246,.08);font-size:10px;font-weight:600;letter-spacing:.05em">IDEA</div>
             <div>
               <div class="activity-title">Concept added: Voice-first interaction layer</div>
               <div class="activity-time">4 days ago · AI Project</div>
@@ -894,10 +897,10 @@
       </div>
 
       <div class="proj-tabs">
-        <button class="tab-btn active" onclick="showTab('timeline',this)">📅 Timeline</button>
-        <button class="tab-btn" onclick="showTab('todos',this)">✅ Todos</button>
-        <button class="tab-btn" onclick="showTab('documents',this)">📄 Documents</button>
-        <button class="tab-btn" onclick="showTab('concepts',this)">💡 Concepts</button>
+        <button class="tab-btn active" onclick="showTab('timeline',this)">Timeline</button>
+        <button class="tab-btn" onclick="showTab('todos',this)">Todos</button>
+        <button class="tab-btn" onclick="showTab('documents',this)">Documents</button>
+        <button class="tab-btn" onclick="showTab('concepts',this)">Concepts</button>
       </div>
 
       <div class="tab-content active" id="tab-timeline"><div class="timeline" id="tl-content"></div></div>
@@ -922,7 +925,7 @@
 
       <div class="chat-msgs" id="chat-msgs">
         <div class="msg ai">
-          <div class="msg-av">⚡</div>
+          <div class="msg-av">P</div>
           <div class="msg-bub">Hello, Mirek. I'm PRIME — your personal intelligence system. I can help you manage projects, track decisions, surface documents, and much more. What would you like to work on today?</div>
         </div>
         <div class="msg user">
@@ -930,7 +933,7 @@
           <div class="msg-bub">What's the status of my Personal AI OS project?</div>
         </div>
         <div class="msg ai">
-          <div class="msg-av">⚡</div>
+          <div class="msg-av">P</div>
           <div class="msg-bub"><strong>Personal AI OS</strong> is 25% complete and active. You have 8 open todos and 4 recorded decisions.<br><br>Most recently: <em>ADR-002 — HTML-first prototype chosen</em> (2 hours ago). Your next high-priority task is designing the knowledge graph schema (RDF vs property graph).<br><br>Shall I open the decision timeline or your todo list?</div>
         </div>
       </div>
@@ -962,12 +965,12 @@
       <div class="graph-sidebar">
         <div class="legend">
           <div class="legend-title">Node Types</div>
-          <div class="legend-item"><div class="legend-dot" style="background:#00d4ff"></div>📁 Project</div>
-          <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div>📰 Article</div>
-          <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div>📝 Note</div>
-          <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>📄 PDF</div>
-          <div class="legend-item"><div class="legend-dot" style="background:#ec4899"></div>🎬 Video</div>
-          <div class="legend-item"><div class="legend-dot" style="background:#8b5cf6"></div>🎨 Artifact</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#00d4ff"></div>Project</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div>Article</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div>Note</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>PDF</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#ec4899"></div>Video</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#8b5cf6"></div>Artifact</div>
         </div>
         <div class="graph-hint">Drag nodes to rearrange. Click to inspect.</div>
         <div class="node-panel" id="node-panel">
@@ -1007,7 +1010,7 @@
       <div class="agent-card" style="--agent-color: #00d4ff">
         <div class="agent-card-top">
           <div style="display:flex;align-items:center;gap:12px">
-            <div class="agent-avatar" style="background:rgba(0,212,255,.08)">🔍</div>
+            <div class="agent-avatar" style="background:rgba(0,212,255,.08);font-size:11px;font-weight:600">RES</div>
             <div>
               <div class="agent-name">Research</div>
               <div class="agent-role">Information retrieval · synthesis</div>
@@ -1032,7 +1035,7 @@
         </div>
         <div class="agent-actions">
           <button class="agent-btn" onclick="agentAction('pause','Research')">⏸ Pause</button>
-          <button class="agent-btn" onclick="agentAction('logs','Research')">📋 Logs</button>
+          <button class="agent-btn" onclick="agentAction('logs','Research')">Logs</button>
           <button class="agent-btn" onclick="agentAction('stop','Research')">⏹ Stop</button>
           <button class="agent-btn primary" onclick="agentAction('result','Research')">→ Result</button>
         </div>
@@ -1042,7 +1045,7 @@
       <div class="agent-card" style="--agent-color: #10b981">
         <div class="agent-card-top">
           <div style="display:flex;align-items:center;gap:12px">
-            <div class="agent-avatar" style="background:rgba(16,185,129,.08)">✍️</div>
+            <div class="agent-avatar" style="background:rgba(16,185,129,.08);font-size:11px;font-weight:600">WRT</div>
             <div>
               <div class="agent-name">Writer</div>
               <div class="agent-role">Documents · ADRs · summaries</div>
@@ -1066,7 +1069,7 @@
         </div>
         <div class="agent-actions">
           <button class="agent-btn" onclick="agentAction('pause','Writer')">⏸ Pause</button>
-          <button class="agent-btn" onclick="agentAction('logs','Writer')">📋 Logs</button>
+          <button class="agent-btn" onclick="agentAction('logs','Writer')">Logs</button>
           <button class="agent-btn" onclick="agentAction('stop','Writer')">⏹ Stop</button>
           <button class="agent-btn primary" onclick="agentAction('result','Writer')">→ Result</button>
         </div>
@@ -1076,7 +1079,7 @@
       <div class="agent-card" style="--agent-color: #8b5cf6">
         <div class="agent-card-top">
           <div style="display:flex;align-items:center;gap:12px">
-            <div class="agent-avatar" style="background:rgba(139,92,246,.08)">📊</div>
+            <div class="agent-avatar" style="background:rgba(139,92,246,.08);font-size:11px;font-weight:600">ANL</div>
             <div>
               <div class="agent-name">Analyst</div>
               <div class="agent-role">Data · portfolio · metrics</div>
@@ -1099,8 +1102,8 @@
           <div class="agent-log-line"><span class="log-time">13:16</span><span class="log-ok">✓</span><span>Report written to Q1 Perf Report.pdf</span></div>
         </div>
         <div class="agent-actions">
-          <button class="agent-btn" onclick="agentAction('assign','Analyst')">📋 Assign task</button>
-          <button class="agent-btn" onclick="agentAction('logs','Analyst')">📋 Logs</button>
+          <button class="agent-btn" onclick="agentAction('assign','Analyst')">Assign task</button>
+          <button class="agent-btn" onclick="agentAction('logs','Analyst')">Logs</button>
           <button class="agent-btn primary" onclick="agentAction('result','Analyst')">→ Last result</button>
         </div>
       </div>
@@ -1109,7 +1112,7 @@
       <div class="agent-card" style="--agent-color: #f59e0b">
         <div class="agent-card-top">
           <div style="display:flex;align-items:center;gap:12px">
-            <div class="agent-avatar" style="background:rgba(245,158,11,.08)">👁️</div>
+            <div class="agent-avatar" style="background:rgba(245,158,11,.08);font-size:11px;font-weight:600">MON</div>
             <div>
               <div class="agent-name">Monitor</div>
               <div class="agent-role">Watching · alerting · digests</div>
@@ -1135,8 +1138,8 @@
           <div class="agent-log-line"><span class="log-time">12:00</span><span class="log-info">→</span><span>Permit status: "Under review"</span></div>
         </div>
         <div class="agent-actions">
-          <button class="agent-btn" onclick="agentAction('config','Monitor')">⚙️ Configure</button>
-          <button class="agent-btn" onclick="agentAction('logs','Monitor')">📋 Logs</button>
+          <button class="agent-btn" onclick="agentAction('config','Monitor')">Configure</button>
+          <button class="agent-btn" onclick="agentAction('logs','Monitor')">Logs</button>
           <button class="agent-btn primary" onclick="agentAction('run','Monitor')">▶ Run now</button>
         </div>
       </div>
@@ -1233,7 +1236,7 @@ let agentsLoaded = false;
 
 const STATUS_CLASS = { active:'s-active', planning:'s-planning', on_hold:'s-onhold', archived:'s-archived' };
 const STATUS_LABEL = { active:'Active', planning:'Planning', on_hold:'On hold', archived:'Archived' };
-const TYPE_ICON    = { article:'📰', note:'📝', pdf:'📄', video:'🎬', artifact:'🎨', decision:'⚖️' };
+const TYPE_ICON    = { article:'ART', note:'NOTE', pdf:'PDF', video:'VID', artifact:'OBJ', decision:'ADR', link:'LINK' };
 
 async function loadProjects() {
   try {
@@ -1277,9 +1280,9 @@ function renderProjectCards(projects) {
         <div class="proj-desc">${p.description}</div>
         <div class="prog-bar"><div class="prog-fill" style="width:${p.progress||0}%;background:${p.color}"></div></div>
         <div class="proj-meta">
-          <span>📋 ${p.todo_count} todos</span>
-          <span>🏛 ${p.decision_count} decisions</span>
-          <span>📄 ${p.resource_count} resources</span>
+          <span>${p.todo_count} todos</span>
+          <span>${p.decision_count} decisions</span>
+          <span>${p.resource_count} resources</span>
         </div>
       </div>`;
   }).join('');
@@ -1415,7 +1418,7 @@ function renderDocs(resources) {
     return;
   }
   document.getElementById('docs-content').innerHTML = resources.map(r => {
-    const icon    = TYPE_ICON[r.type] || '📄';
+    const icon    = TYPE_ICON[r.type] || 'FILE';
     const hasLink = r.source_url;
     const tag     = hasLink ? `a href="${r.source_url}" target="_blank" rel="noopener"` : 'div';
     const closeTag= hasLink ? 'a' : 'div';
@@ -1432,7 +1435,7 @@ function renderDocs(resources) {
 function renderConcepts(concepts) {
   document.getElementById('concepts-content').innerHTML = concepts.map(c => `
     <div class="concept-item">
-      <div class="concept-name">💡 ${c.name}</div>
+      <div class="concept-name">${c.name}</div>
       <div class="concept-desc">${c.desc}</div>
     </div>`).join('');
 }
@@ -1496,7 +1499,7 @@ function addMsg(role, html) {
   const msgs = document.getElementById('chat-msgs');
   const div = document.createElement('div');
   div.className = 'msg ' + role;
-  div.innerHTML = `<div class="msg-av">${role==='ai'?'⚡':'M'}</div><div class="msg-bub">${html}</div>`;
+  div.innerHTML = `<div class="msg-av">${role==='ai'?'P':'M'}</div><div class="msg-bub">${html}</div>`;
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
 }
@@ -1505,7 +1508,7 @@ function showTyping() {
   const msgs = document.getElementById('chat-msgs');
   const div = document.createElement('div');
   div.className = 'msg ai'; div.id = 'typing-indicator';
-  div.innerHTML = `<div class="msg-av">⚡</div><div class="msg-bub"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>`;
+  div.innerHTML = `<div class="msg-av">P</div><div class="msg-bub"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>`;
   msgs.appendChild(div); msgs.scrollTop = msgs.scrollHeight;
 }
 
@@ -1651,11 +1654,11 @@ function renderAgentCards(agents, runByAgent) {
         <div class="agent-actions">
           ${running ? `
             <button class="agent-btn" onclick="agentAction('pause','${agent.name}')">⏸ Pause</button>
-            <button class="agent-btn" onclick="agentAction('logs','${agent.name}')">📋 Logs</button>
+            <button class="agent-btn" onclick="agentAction('logs','${agent.name}')">Logs</button>
             <button class="agent-btn" onclick="agentAction('stop','${agent.name}')">⏹ Stop</button>
             <button class="agent-btn primary" onclick="agentAction('result','${agent.name}')">→ Result</button>
           ` : `
-            <button class="agent-btn" onclick="assignTask('${agent.id}','${agent.name}')">📋 Assign task</button>
+            <button class="agent-btn" onclick="assignTask('${agent.id}','${agent.name}')">Assign task</button>
             ${run ? `<button class="agent-btn primary" onclick="agentAction('result','${agent.name}')">→ Last result</button>` : ''}
           `}
         </div>
@@ -1779,8 +1782,8 @@ function _buildGraph(W, H, apiNodes, apiEdges) {
     pdf: '#f59e0b', video: '#ec4899', artifact: '#8b5cf6', decision: '#3b82f6',
   };
   const EMOJI = {
-    project: '📁', article: '📰', note: '📝',
-    pdf: '📄', video: '🎬', artifact: '🎨', decision: '⚖️',
+    project: 'PRJ', article: 'ART', note: 'NOTE',
+    pdf: 'PDF', video: 'VID', artifact: 'OBJ', decision: 'ADR',
   };
 
   // Build lookup from live node data for the detail panel
