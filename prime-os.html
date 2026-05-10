@@ -404,6 +404,7 @@
   .t-decision  { background: rgba(0,212,255,.1);   color: var(--cyan); }
   .t-milestone { background: rgba(16,185,129,.1);  color: var(--green); }
   .t-note      { background: rgba(100,116,139,.1); color: var(--text-dim); }
+  .t-todo      { background: rgba(16,185,129,.08); color: var(--green); }
   .tl-date { font-size: 11px; color: var(--text-dim); }
   .tl-title { font-size: 13px; font-weight: 600; margin-bottom: 5px; }
   .tl-body { font-size: 12px; color: var(--text-dim); line-height: 1.6; }
@@ -1309,13 +1310,28 @@ async function openProjectById(id) {
     document.getElementById('d-desc').textContent = proj.description;
 
     // Decisions → timeline
-    const timeline = (detail.decisions || []).map(dec => ({
+    const decItems = (detail.decisions || []).map(dec => ({
       type:  dec.type,
       date:  dec.date,
       title: dec.title,
       body:  [dec.context, dec.body, dec.consequences].filter(Boolean).join(' '),
       alts:  (dec.alternatives || []).map(a => `${a.title} — ${a.reason}`),
     }));
+
+    // Done todos → timeline
+    const todoItems = (detail.todos || [])
+      .filter(t => t.status === 'done')
+      .map(t => ({
+        type:  'todo',
+        date:  t.completed || t.created || '',
+        title: t.text,
+        body:  [t.section !== 'Backlog' ? `Section: ${t.section}` : '', `Priority: ${t.priority}`].filter(Boolean).join(' · '),
+        alts:  [],
+      }));
+
+    // Merge and sort newest-first
+    const timeline = [...decItems, ...todoItems]
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     renderTimeline(timeline);
 
     // Todos → sections
@@ -1354,8 +1370,8 @@ function closeProject() {
   document.getElementById('proj-detail').classList.remove('visible');
 }
 
-const T_CLASS = { adr:'t-adr', decision:'t-decision', milestone:'t-milestone', note:'t-note' };
-const T_LABEL = { adr:'ADR', decision:'Decision', milestone:'Milestone', note:'Note' };
+const T_CLASS = { adr:'t-adr', decision:'t-decision', milestone:'t-milestone', note:'t-note', todo:'t-todo' };
+const T_LABEL = { adr:'ADR', decision:'Decision', milestone:'Milestone', note:'Note', todo:'✓ Done' };
 
 function renderTimeline(items) {
   document.getElementById('tl-content').innerHTML = items.map(it => `
