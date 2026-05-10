@@ -42,7 +42,14 @@ async def lifespan(app: FastAPI):
     runtime = AgentRuntime(store, graph)
     init_dependencies(store, graph, runtime)
 
-    # 2. Build the knowledge graph from disk
+    # 2. Auto-seed if the workspace is empty (first boot / fresh Docker volume)
+    if not store.list_projects():
+        log.info("Workspace is empty — running seed…")
+        from .seed import seed
+        await asyncio.to_thread(seed)
+        log.info("Seed complete.")
+
+    # 3. Build the knowledge graph from disk
     log.info("Building knowledge graph…")
     projects_list  = store.list_projects()
     all_decisions  = []
