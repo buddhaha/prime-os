@@ -37,16 +37,11 @@ Full architecture: see [ARCHITECTURE.md](ARCHITECTURE.md).
 ### Docker (recommended)
 
 ```bash
-# 1. Seed example data into ~/PRIME (one-time setup)
-pip install -r requirements.txt
-python -m backend.seed
-
-# 2. Start
 docker compose up
-
-# 3. Open
 open http://localhost:7474
 ```
+
+That's it. On first boot, if `~/PRIME` is empty, the server seeds it automatically with the example projects. No separate setup step.
 
 The API key is optional — projects, graph, and resources all work without one. Agents require it.
 
@@ -54,9 +49,16 @@ The API key is optional — projects, graph, and resources all work without one.
 # With an API key (enables agent execution)
 ANTHROPIC_API_KEY=sk-ant-... docker compose up
 
-# Or put it in .env first
-cp .env.example .env   # then edit .env
+# Or put it in .env
+cp .env.example .env   # fill in key, then:
 docker compose up
+```
+
+**To re-seed** (wipes existing data in the mounted volume):
+
+```bash
+rm -rf ~/PRIME
+docker compose run --rm seed
 ```
 
 To use a different data directory:
