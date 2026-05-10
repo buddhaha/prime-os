@@ -20,7 +20,7 @@ services:
       start_period: 10s
     # Auto-seeds on first boot if /data is empty — no manual step needed.
 
-  # Manual seed: docker compose run --rm seed
+  # Manual seed: docker compose run seed
   seed:
     build: .
     command: python -m backend.seed
@@ -28,5 +28,3 @@ services:
       PRIME_WORKSPACE: /data
     volumes:
       - ${PRIME_DATA_DIR:-~/PRIME}:/data
-    profiles:
-      - tools

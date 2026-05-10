@@ -58,7 +58,7 @@ docker compose up
 
 ```bash
 rm -rf ~/PRIME
-docker compose run --rm seed
+docker compose run seed
 ```
 
 To use a different data directory:
