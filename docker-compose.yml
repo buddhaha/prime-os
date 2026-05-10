@@ -1,0 +1,20 @@
+services:
+  prime:
+    build: .
+    ports:
+      - "7474:7474"
+    environment:
+      # Copy your key from .env or pass it inline:
+      #   ANTHROPIC_API_KEY=sk-ant-... docker compose up
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      PRIME_WORKSPACE: /data
+    volumes:
+      # Persists all PRIME data (projects, knowledge, runs) on the host
+      - ${PRIME_DATA_DIR:-~/PRIME}:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:7474/api/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
