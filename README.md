@@ -54,10 +54,9 @@ cp .env.example .env   # fill in key, then:
 docker-compose up
 ```
 
-**To re-seed** (wipes existing data in the mounted volume):
+**To re-seed** (wipes and rebuilds the data volume):
 
 ```bash
-rm -rf ~/PRIME
 docker-compose run seed
 ```
 

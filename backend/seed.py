@@ -1,13 +1,13 @@
 """
 Seed script — populates ~/PRIME with real project data.
 
-Run once:
-    python -m backend.seed
+Always wipes the workspace first, so it's safe to run multiple times.
 
-To reset and re-seed:
-    rm -rf ~/PRIME && python -m backend.seed
+    python -m backend.seed
+    docker-compose run seed
 """
 
+import shutil
 import sys
 from pathlib import Path
 
@@ -25,8 +25,15 @@ from backend.models.agent import AgentCreate, AgentRole, AgentTool
 
 
 def seed():
-    store = FileStore(settings.workspace_path)
-    print(f"Seeding workspace at: {settings.workspace_path}")
+    workspace = settings.workspace_path
+
+    # Wipe and recreate so re-runs are always clean
+    if workspace.exists():
+        shutil.rmtree(workspace)
+    workspace.mkdir(parents=True)
+
+    store = FileStore(workspace)
+    print(f"Seeding workspace at: {workspace}")
 
     # ── Projects ──────────────────────────────────────────────────────
 
