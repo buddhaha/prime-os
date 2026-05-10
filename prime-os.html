@@ -614,6 +614,12 @@
 </head>
 <body>
 
+<!-- ═══ OFFLINE BANNER ═══ -->
+<div id="offline-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#1e0a0a;border-bottom:1px solid rgba(239,68,68,.4);padding:10px 20px;align-items:center;gap:10px;font-size:12px;color:#f87171">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  Backend offline — run <code style="background:rgba(255,255,255,.08);padding:1px 6px;border-radius:3px;font-family:monospace">uvicorn backend.main:app --host 127.0.0.1 --port 7474 --reload</code> to connect live data.
+</div>
+
 <!-- ═══ SIDEBAR ═══ -->
 <nav class="sidebar">
   <div class="sidebar-logo" onclick="showView('dashboard', document.querySelectorAll('.nav-btn')[0])">
@@ -795,28 +801,11 @@
         </div>
       </div>
 
-      <!-- Project strip -->
-      <div class="proj-strip">
-        <div class="proj-mini" onclick="openProject(0)">
-          <div class="proj-mini-accent" style="background:var(--cyan)"></div>
-          <div class="proj-mini-name">🤖 Personal AI OS</div>
-          <div class="proj-mini-desc">Prime-style assistant with knowledge graph, voice & decision tracking</div>
-          <div class="prog-bar"><div class="prog-fill" style="width:25%;background:var(--cyan)"></div></div>
-          <div class="proj-mini-footer"><span>Active</span><span>25% complete</span></div>
-        </div>
-        <div class="proj-mini" onclick="openProject(1)">
-          <div class="proj-mini-accent" style="background:var(--amber)"></div>
-          <div class="proj-mini-name">🏠 Home Renovation</div>
-          <div class="proj-mini-desc">Bathroom & kitchen — contractor selection, permits, Q3 start</div>
-          <div class="prog-bar"><div class="prog-fill" style="width:40%;background:var(--amber)"></div></div>
-          <div class="proj-mini-footer"><span>Active</span><span>40% complete</span></div>
-        </div>
-        <div class="proj-mini" onclick="openProject(2)">
-          <div class="proj-mini-accent" style="background:var(--green)"></div>
-          <div class="proj-mini-name">📊 Investment Portfolio</div>
-          <div class="proj-mini-desc">Q2 2026 rebalancing — ETF allocation & benchmark tracking</div>
-          <div class="prog-bar"><div class="prog-fill" style="width:60%;background:var(--green)"></div></div>
-          <div class="proj-mini-footer"><span>Planning</span><span>60% complete</span></div>
+      <!-- Project strip — populated by loadDashboardStrip() -->
+      <div class="proj-strip" id="dash-proj-strip">
+        <div class="proj-mini" style="opacity:.4;pointer-events:none">
+          <div class="proj-mini-accent" style="background:var(--text-dim)"></div>
+          <div class="proj-mini-name" style="color:var(--text-dim)">Loading projects…</div>
         </div>
       </div>
 
@@ -827,54 +816,9 @@
   <section class="view" id="view-projects">
 
     <div id="proj-list">
-      <div class="section-title">Projects <small>3 active workspaces</small></div>
-      <div class="projects-grid">
-
-        <div class="proj-card" onclick="openProject(0)">
-          <div class="proj-card-top">
-            <div class="proj-icon" style="background:rgba(0,212,255,.08)">🤖</div>
-            <div class="status-pill s-active">Active</div>
-          </div>
-          <div class="proj-name">Personal AI OS</div>
-          <div class="proj-desc">Prime-style personal assistant — decision tracking, knowledge graph, voice interface, all local-first.</div>
-          <div class="prog-bar"><div class="prog-fill" style="width:25%;background:var(--cyan)"></div></div>
-          <div class="proj-meta">
-            <span>📋 8 todos</span>
-            <span>🏛 4 decisions</span>
-            <span>📄 6 docs</span>
-          </div>
-        </div>
-
-        <div class="proj-card" onclick="openProject(1)">
-          <div class="proj-card-top">
-            <div class="proj-icon" style="background:rgba(245,158,11,.08)">🏠</div>
-            <div class="status-pill s-active">Active</div>
-          </div>
-          <div class="proj-name">Home Renovation 2026</div>
-          <div class="proj-desc">Bathroom & kitchen renovation. Contractor selection in progress, permits submitted, Q3 start date locked.</div>
-          <div class="prog-bar"><div class="prog-fill" style="width:40%;background:var(--amber)"></div></div>
-          <div class="proj-meta">
-            <span>📋 12 todos</span>
-            <span>🏛 3 decisions</span>
-            <span>📄 11 docs</span>
-          </div>
-        </div>
-
-        <div class="proj-card" onclick="openProject(2)">
-          <div class="proj-card-top">
-            <div class="proj-icon" style="background:rgba(16,185,129,.08)">📊</div>
-            <div class="status-pill s-planning">Planning</div>
-          </div>
-          <div class="proj-name">Investment Portfolio Q2</div>
-          <div class="proj-desc">Q2 2026 rebalancing. International ETF shift, auto-rebalance threshold set, tax-loss review pending.</div>
-          <div class="prog-bar"><div class="prog-fill" style="width:60%;background:var(--green)"></div></div>
-          <div class="proj-meta">
-            <span>📋 5 todos</span>
-            <span>🏛 5 decisions</span>
-            <span>📄 7 docs</span>
-          </div>
-        </div>
-
+      <div class="section-title" id="proj-count-title">Projects <small>loading…</small></div>
+      <div class="projects-grid" id="projects-grid">
+        <!-- populated by loadProjects() -->
       </div>
     </div>
 
@@ -976,12 +920,9 @@
 
     <div class="agents-header">
       <div>
-        <div class="section-title" style="margin-bottom:6px">Agents <small>5 registered · 2 running</small></div>
-        <div class="agents-stats">
-          <div class="agents-stat"><div class="agents-stat-dot" style="background:var(--cyan);box-shadow:0 0 5px var(--cyan)"></div>2 running</div>
-          <div class="agents-stat"><div class="agents-stat-dot" style="background:var(--text-dim)"></div>1 idle</div>
-          <div class="agents-stat"><div class="agents-stat-dot" style="background:var(--green)"></div>8 completed today</div>
-          <div class="agents-stat"><div class="agents-stat-dot" style="background:var(--amber)"></div>2 queued</div>
+        <div class="section-title" id="agents-title" style="margin-bottom:6px">Agents <small>loading…</small></div>
+        <div class="agents-stats" id="agents-stats">
+          <!-- populated by loadAgents() -->
         </div>
       </div>
       <button class="spawn-btn" onclick="spawnAgent()">
@@ -990,9 +931,16 @@
       </button>
     </div>
 
-    <div class="agents-grid">
+    <div class="agents-grid" id="agents-grid">
+      <!-- populated by loadAgents() -->
+    </div>
 
-      <!-- Agent 1: Research -->
+    <div id="agents-queue-section">
+      <!-- populated by loadAgents() -->
+    </div>
+
+    <!-- HIDDEN — kept for legacy onclick refs, replaced dynamically -->
+    <div style="display:none">
       <div class="agent-card" style="--agent-color: #00d4ff">
         <div class="agent-card-top">
           <div style="display:flex;align-items:center;gap:12px">
@@ -1130,38 +1078,7 @@
         </div>
       </div>
 
-    </div>
-
-    <!-- Queue -->
-    <div class="agents-section-title">Task queue</div>
-    <div class="queue-item">
-      <div class="queue-emoji">🔍</div>
-      <div class="queue-text">Research Agent — "Summarise 3 contractor reviews for QuickBuild from Trustpilot"</div>
-      <div class="queue-badge as-queued" style="background:rgba(245,158,11,.1);color:var(--amber);border:1px solid rgba(245,158,11,.3)">Queued</div>
-    </div>
-    <div class="queue-item">
-      <div class="queue-emoji">✍️</div>
-      <div class="queue-text">Writer Agent — "Draft renovation project brief for contractor handoff meeting"</div>
-      <div class="queue-badge as-queued" style="background:rgba(245,158,11,.1);color:var(--amber);border:1px solid rgba(245,158,11,.3)">Queued</div>
-    </div>
-
-    <!-- Completed today -->
-    <div class="agents-section-title">Completed today</div>
-    <div class="queue-item">
-      <div class="queue-emoji">📊</div>
-      <div class="queue-text">Analyst — "Q1 2026 portfolio performance vs MSCI World"</div>
-      <div class="queue-badge" style="background:rgba(16,185,129,.1);color:var(--green);border:1px solid rgba(16,185,129,.3)">Done · 1 h ago</div>
-    </div>
-    <div class="queue-item">
-      <div class="queue-emoji">🔍</div>
-      <div class="queue-text">Research — "Best practices for force-directed graph layout with D3 v7"</div>
-      <div class="queue-badge" style="background:rgba(16,185,129,.1);color:var(--green);border:1px solid rgba(16,185,129,.3)">Done · 3 h ago</div>
-    </div>
-    <div class="queue-item">
-      <div class="queue-emoji">✍️</div>
-      <div class="queue-text">Writer — "ADR-002: HTML-first prototype approach"</div>
-      <div class="queue-badge" style="background:rgba(16,185,129,.1);color:var(--green);border:1px solid rgba(16,185,129,.3)">Done · 5 h ago</div>
-    </div>
+    </div></div><!-- end hidden legacy -->
 
   </section>
 
@@ -1179,7 +1096,8 @@ function showView(name, btn) {
   document.getElementById('view-' + name).classList.add('active');
   if (btn) btn.classList.add('active');
   document.getElementById('topbar-path').textContent = VIEW_NAMES[name];
-  if (name === 'graph' && !graphInited) { graphInited = true; requestAnimationFrame(initGraph); }
+  if (name === 'graph'  && !graphInited)   { graphInited  = true; requestAnimationFrame(initGraph); }
+  if (name === 'agents' && !agentsLoaded)  { agentsLoaded = true; loadAgents(); }
 }
 
 /* ═══════════════════════════════
@@ -1200,9 +1118,168 @@ tick(); setInterval(tick, 1000);
 function toggleTask(el) { el.classList.toggle('done'); }
 
 /* ═══════════════════════════════
-   PROJECT DATA
+   API CLIENT
 ═══════════════════════════════ */
-const PROJECTS = [
+const API = {
+  async get(path) {
+    const r = await fetch(path);
+    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+    return r.json();
+  },
+  async post(path, body) {
+    const r = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+    return r.json();
+  },
+};
+
+async function checkBackend() {
+  try {
+    await API.get('/api/health');
+    document.getElementById('offline-banner').style.display = 'none';
+    return true;
+  } catch {
+    document.getElementById('offline-banner').style.display = 'flex';
+    return false;
+  }
+}
+
+function hexToRgb(hex) {
+  const m = (hex || '').replace('#','').match(/.{2}/g);
+  return m ? m.map(v => parseInt(v,16)).join(',') : '0,212,255';
+}
+
+/* ═══════════════════════════════
+   PROJECTS (live API)
+═══════════════════════════════ */
+let curProject = null;
+let agentsLoaded = false;
+
+const STATUS_CLASS = { active:'s-active', planning:'s-planning', on_hold:'s-onhold', archived:'s-archived' };
+const STATUS_LABEL = { active:'Active', planning:'Planning', on_hold:'On hold', archived:'Archived' };
+const TYPE_ICON    = { article:'📰', note:'📝', pdf:'📄', video:'🎬', artifact:'🎨', decision:'⚖️' };
+
+async function loadProjects() {
+  try {
+    const projects = await API.get('/api/projects');
+    renderProjectCards(projects);
+    renderDashboardStrip(projects);
+  } catch(e) {
+    console.error('loadProjects:', e);
+    document.getElementById('projects-grid').innerHTML =
+      '<div style="color:var(--text-dim);font-size:13px;padding:20px 0">Could not load projects — is the backend running?</div>';
+  }
+}
+
+function renderDashboardStrip(projects) {
+  const stripEl = document.getElementById('dash-proj-strip');
+  if (!stripEl) return;
+  stripEl.innerHTML = projects.map(p => `
+    <div class="proj-mini" onclick="openProjectById('${p.id}')">
+      <div class="proj-mini-accent" style="background:${p.color}"></div>
+      <div class="proj-mini-name">${p.emoji} ${p.name}</div>
+      <div class="proj-mini-desc">${p.description}</div>
+      <div class="prog-bar"><div class="prog-fill" style="width:${p.progress||0}%;background:${p.color}"></div></div>
+      <div class="proj-mini-footer"><span>${STATUS_LABEL[p.status]||p.status}</span><span>${p.progress||0}% complete</span></div>
+    </div>`).join('');
+}
+
+function renderProjectCards(projects) {
+  const titleEl = document.getElementById('proj-count-title');
+  const gridEl  = document.getElementById('projects-grid');
+  const active  = projects.filter(p => p.status === 'active').length;
+  titleEl.innerHTML = `Projects <small>${active} active</small>`;
+  gridEl.innerHTML  = projects.map(p => {
+    const rgb = hexToRgb(p.color);
+    return `
+      <div class="proj-card" onclick="openProjectById('${p.id}')">
+        <div class="proj-card-top">
+          <div class="proj-icon" style="background:rgba(${rgb},.08)">${p.emoji}</div>
+          <div class="status-pill ${STATUS_CLASS[p.status]||'s-active'}">${STATUS_LABEL[p.status]||p.status}</div>
+        </div>
+        <div class="proj-name">${p.name}</div>
+        <div class="proj-desc">${p.description}</div>
+        <div class="prog-bar"><div class="prog-fill" style="width:${p.progress||0}%;background:${p.color}"></div></div>
+        <div class="proj-meta">
+          <span>📋 ${p.todo_count} todos</span>
+          <span>🏛 ${p.decision_count} decisions</span>
+          <span>📄 ${p.resource_count} resources</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function openProjectById(id) {
+  showView('projects', document.querySelectorAll('.nav-btn')[1]);
+  document.getElementById('proj-list').style.display = 'none';
+  const d = document.getElementById('proj-detail');
+  d.classList.add('visible');
+  document.getElementById('d-name').textContent = 'Loading…';
+  document.getElementById('d-desc').textContent = '';
+  document.getElementById('tl-content').innerHTML   = '<div style="color:var(--text-dim);font-size:13px;padding:24px 0">Loading…</div>';
+  document.getElementById('todos-content').innerHTML = '';
+  document.getElementById('docs-content').innerHTML  = '';
+  document.getElementById('concepts-content').innerHTML = '';
+
+  try {
+    const [detail, resources] = await Promise.all([
+      API.get(`/api/projects/${id}`),
+      API.get(`/api/resources?project_id=${id}`),
+    ]);
+    const proj = detail.project;
+    curProject = detail;
+
+    document.getElementById('d-icon').textContent = proj.emoji;
+    document.getElementById('d-name').textContent = proj.name;
+    document.getElementById('d-desc').textContent = proj.description;
+
+    // Decisions → timeline
+    const timeline = (detail.decisions || []).map(dec => ({
+      type:  dec.type,
+      date:  dec.date,
+      title: dec.title,
+      body:  [dec.context, dec.body, dec.consequences].filter(Boolean).join(' '),
+      alts:  (dec.alternatives || []).map(a => `${a.title} — ${a.reason}`),
+    }));
+    renderTimeline(timeline);
+
+    // Todos → sections
+    const sections = {};
+    for (const t of (detail.todos || [])) {
+      const sec = t.section || 'Backlog';
+      if (!sections[sec]) sections[sec] = [];
+      sections[sec].push({
+        text: t.text,
+        prio: t.priority === 'high' ? 'high' : t.priority === 'medium' ? 'med' : 'low',
+        done: t.status === 'done',
+      });
+    }
+    renderTodos(sections);
+
+    // Concepts
+    renderConcepts(detail.concepts || []);
+
+    // Resources → docs
+    renderDocs(resources.map(r => ({ name: r.title, icon: TYPE_ICON[r.type] || '📄', meta: r.description || r.type })));
+
+  } catch(e) {
+    console.error('openProjectById:', e);
+    document.getElementById('d-name').textContent = 'Error loading project';
+  }
+
+  document.querySelectorAll('.tab-btn').forEach((b,i)  => b.classList.toggle('active', i===0));
+  document.querySelectorAll('.tab-content').forEach((c,i) => c.classList.toggle('active', i===0));
+}
+
+// keep legacy openProject stub so any stale HTML refs don't throw
+function openProject(idx) { console.warn('openProject() is deprecated — use openProjectById()'); }
+
+/* ═══════════════════════════════
+   PLACEHOLDER DATA (was PROJECTS)
   {
     icon:'🤖', name:'Personal AI OS',
     desc:'Prime-style personal assistant — decision tracking, knowledge graph, voice interface',
@@ -1339,27 +1416,7 @@ const PROJECTS = [
       { name:'Tax efficiency', desc:'Hold bonds in tax-advantaged accounts; equities in taxable for flexibility.' },
     ],
   },
-];
-
-let curProject = null;
-
-function openProject(idx) {
-  curProject = PROJECTS[idx];
-  showView('projects', document.querySelectorAll('.nav-btn')[1]);
-  document.getElementById('proj-list').style.display = 'none';
-  const d = document.getElementById('proj-detail');
-  d.classList.add('visible');
-  document.getElementById('d-icon').textContent = curProject.icon;
-  document.getElementById('d-name').textContent  = curProject.name;
-  document.getElementById('d-desc').textContent  = curProject.desc;
-  renderTimeline(curProject.timeline);
-  renderTodos(curProject.todos);
-  renderDocs(curProject.docs);
-  renderConcepts(curProject.concepts);
-  // reset tabs
-  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i===0));
-  document.querySelectorAll('.tab-content').forEach((c,i) => c.classList.toggle('active', i===0));
-}
+]; // end legacy PROJECTS array
 
 function closeProject() {
   document.getElementById('proj-list').style.display = '';
@@ -1553,114 +1610,222 @@ function spawnAgent() {
 ═══════════════════════════════ */
 let graphInited = false;
 
-// Node metadata for the detail panel
-const NODE_META = {
-  p1:   { tag:'Project',  emoji:'📁', desc:'Prime-style personal assistant — local-first, all views prototyped.' },
-  p2:   { tag:'Project',  emoji:'📁', desc:'Bathroom & kitchen renovation — contractor selection underway.' },
-  p3:   { tag:'Project',  emoji:'📁', desc:'Q2 2026 rebalancing — international ETF shift in progress.' },
-  a1:   { tag:'Article',  emoji:'📰', desc:'"Building a Second Brain" — Tiago Forte. Inspiration for knowledge capture system.' },
-  a2:   { tag:'Article',  emoji:'📰', desc:'"Iron Man HUD Design Breakdown" — UI reference for the Prime aesthetic.' },
-  a3:   { tag:'Article',  emoji:'📰', desc:'"RDF vs Property Graph" — research for knowledge graph schema decision.' },
-  a4:   { tag:'Article',  emoji:'📰', desc:'"International ETF Diversification 2026" — Morningstar analysis.' },
-  a5:   { tag:'Article',  emoji:'📰', desc:'"Wet Room Design Guide" — bathroom renovation style reference.' },
-  n1:   { tag:'Note',     emoji:'📝', desc:'Voice interface brainstorm — ideas for wake word, ambient mode, and response style.' },
-  n2:   { tag:'Note',     emoji:'📝', desc:'Contractor meeting notes — BuildRight Co. site visit, May 3 2026.' },
-  n3:   { tag:'Note',     emoji:'📝', desc:'Q2 rebalancing plan — allocation targets and execution sequence.' },
-  n4:   { tag:'Note',     emoji:'📝', desc:'ADR-001 draft — local-first storage rationale and trade-offs.' },
-  pdf1: { tag:'PDF',      emoji:'📄', desc:'BuildRight Co. final quote — €18,400, 6-week timeline.' },
-  pdf2: { tag:'PDF',      emoji:'📄', desc:'Architect plans — bathroom wet-room layout, stamped Apr 20 2026.' },
-  pdf3: { tag:'PDF',      emoji:'📄', desc:'Q1 2026 Performance Report — +8.2% vs benchmark +6.1%.' },
-  pdf4: { tag:'PDF',      emoji:'📄', desc:'Tax Strategy 2026 — loss harvesting and account placement guide.' },
-  v1:   { tag:'Video',    emoji:'🎬', desc:'WWDC 2025 — "Designing for Voice" session. SwiftUI speech patterns.' },
-  v2:   { tag:'Video',    emoji:'🎬', desc:'"Bathroom Renovation Start to Finish" — YouTube, 42 min walkthrough.' },
-  v3:   { tag:'Video',    emoji:'🎬', desc:'"Factor Investing Explained" — Ben Felix, Common Sense Investing.' },
-  art1: { tag:'Artifact', emoji:'🎨', desc:'UI Mockup v1 — Figma file, all four PRIME views sketched out.' },
-  art2: { tag:'Artifact', emoji:'🎨', desc:'jarvis-os.html — interactive prototype, built May 9 2026.' },
-  art3: { tag:'Artifact', emoji:'🎨', desc:'ADR Log — all architectural decisions with alternatives considered.' },
-  art4: { tag:'Artifact', emoji:'🎨', desc:'Budget Tracker — Excel, tracks renovation costs vs €45k cap.' },
-  art5: { tag:'Artifact', emoji:'🎨', desc:'Chat history export — PRIME design session, May 9 2026.' },
+/* ═══════════════════════════════
+   AGENTS (live API + WebSocket)
+═══════════════════════════════ */
+const ROLE_COLORS = {
+  research:'#00d4ff', writer:'#10b981', analyst:'#8b5cf6',
+  monitor:'#f59e0b',  coder:'#ef4444',  custom:'#94a3b8',
 };
 
-function initGraph() {
-  // Wait a frame so the view has laid out before reading dimensions
-  requestAnimationFrame(() => {
+async function loadAgents() {
+  try {
+    const [agents, runs] = await Promise.all([
+      API.get('/api/agents'),
+      API.get('/api/agents/runs'),
+    ]);
+
+    const runByAgent = {};
+    for (const run of runs) {
+      if (!runByAgent[run.agent_id] || run.status === 'running') runByAgent[run.agent_id] = run;
+    }
+
+    const running   = runs.filter(r => r.status === 'running').length;
+    const completed = runs.filter(r => r.status === 'completed').length;
+    const queued    = runs.filter(r => r.status === 'queued').length;
+
+    document.getElementById('agents-title').innerHTML =
+      `Agents <small>${agents.length} registered · ${running} running</small>`;
+    document.getElementById('agents-stats').innerHTML = `
+      <div class="agents-stat"><div class="agents-stat-dot" style="background:var(--cyan);box-shadow:0 0 5px var(--cyan)"></div>${running} running</div>
+      <div class="agents-stat"><div class="agents-stat-dot" style="background:var(--text-dim)"></div>${agents.length - running} idle</div>
+      <div class="agents-stat"><div class="agents-stat-dot" style="background:var(--green)"></div>${completed} completed</div>
+      ${queued ? `<div class="agents-stat"><div class="agents-stat-dot" style="background:var(--amber)"></div>${queued} queued</div>` : ''}
+    `;
+
+    renderAgentCards(agents, runByAgent);
+    renderAgentQueue(runs);
+    connectAgentWS(agents);
+  } catch(e) {
+    console.error('loadAgents:', e);
+    document.getElementById('agents-grid').innerHTML =
+      '<div style="color:var(--text-dim);font-size:13px;padding:20px">Could not load agents — is the backend running?</div>';
+  }
+}
+
+function renderAgentCards(agents, runByAgent) {
+  document.getElementById('agents-grid').innerHTML = agents.map(agent => {
+    const color   = ROLE_COLORS[agent.role] || '#94a3b8';
+    const run     = runByAgent[agent.id];
+    const running = run && run.status === 'running';
+    const done    = run && run.status === 'completed';
+    return `
+      <div class="agent-card" id="agent-card-${agent.id}" style="--agent-color:${color}">
+        <div class="agent-card-top">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div class="agent-avatar" style="background:rgba(0,0,0,.1)">${agent.emoji}</div>
+            <div>
+              <div class="agent-name">${agent.name}</div>
+              <div class="agent-role">${agent.description}</div>
+            </div>
+          </div>
+          <div class="agent-status-wrap">
+            <div class="agent-status ${running ? 'as-running' : 'as-idle'}">
+              ${running ? '<div class="status-pulse"></div>Running' : 'Idle'}
+            </div>
+            ${run ? `<div class="agent-uptime">${running ? `↑ turn ${run.turns||0}` : 'Last run done'}</div>` : ''}
+          </div>
+        </div>
+        ${run ? `
+          <div class="agent-task-label">${running ? 'Current task' : 'Last task'}</div>
+          <div class="agent-task-text" ${!running ? 'style="border-left-color:var(--text-dim);color:var(--text-dim)"' : ''}>${run.task}</div>
+          ${running ? `
+            <div class="agent-progress-row">
+              <div class="agent-progress-bar"><div class="agent-progress-fill" id="prog-${agent.id}" style="width:${run.progress||0}%;background:${color}"></div></div>
+              <div class="agent-progress-pct" id="pct-${agent.id}">${run.progress||0}%</div>
+            </div>` : ''}
+          <div class="agent-log" id="agent-log-${agent.id}"></div>
+        ` : `
+          <div class="agent-task-label">No tasks yet</div>
+          <div class="agent-task-text" style="color:var(--text-dim)">Assign a task to get started.</div>
+        `}
+        <div class="agent-actions">
+          ${running ? `
+            <button class="agent-btn" onclick="agentAction('pause','${agent.name}')">⏸ Pause</button>
+            <button class="agent-btn" onclick="agentAction('logs','${agent.name}')">📋 Logs</button>
+            <button class="agent-btn" onclick="agentAction('stop','${agent.name}')">⏹ Stop</button>
+            <button class="agent-btn primary" onclick="agentAction('result','${agent.name}')">→ Result</button>
+          ` : `
+            <button class="agent-btn" onclick="assignTask('${agent.id}','${agent.name}')">📋 Assign task</button>
+            ${run ? `<button class="agent-btn primary" onclick="agentAction('result','${agent.name}')">→ Last result</button>` : ''}
+          `}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderAgentQueue(runs) {
+  const queued    = runs.filter(r => r.status === 'queued');
+  const completed = runs.filter(r => r.status === 'completed').slice(0, 5);
+  let html = '';
+  if (queued.length) {
+    html += `<div class="agents-section-title">Task queue</div>` +
+      queued.map(r => `
+        <div class="queue-item">
+          <div class="queue-emoji">⏳</div>
+          <div class="queue-text">${r.task}</div>
+          <div class="queue-badge as-queued" style="background:rgba(245,158,11,.1);color:var(--amber);border:1px solid rgba(245,158,11,.3)">Queued</div>
+        </div>`).join('');
+  }
+  if (completed.length) {
+    html += `<div class="agents-section-title">Completed</div>` +
+      completed.map(r => `
+        <div class="queue-item">
+          <div class="queue-emoji">✅</div>
+          <div class="queue-text">${r.task}</div>
+          <div class="queue-badge" style="background:rgba(16,185,129,.1);color:var(--green);border:1px solid rgba(16,185,129,.3)">Done</div>
+        </div>`).join('');
+  }
+  document.getElementById('agents-queue-section').innerHTML = html;
+}
+
+function assignTask(agentId, agentName) {
+  showView('chat', document.querySelectorAll('.nav-btn')[2]);
+  setTimeout(() => addMsg('ai', `What task should <strong>${agentName}</strong> work on?<br><br>Describe it and I'll queue it.`), 200);
+}
+
+let ws = null;
+function connectAgentWS(agents) {
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+  try {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${proto}://${location.host}/api/agents/ws`);
+    ws.onmessage = e => { try { handleAgentEvent(JSON.parse(e.data)); } catch {} };
+    ws.onclose   = () => setTimeout(() => connectAgentWS(agents), 3000);
+  } catch {}
+}
+
+function handleAgentEvent(ev) {
+  if (ev.progress !== undefined) {
+    const fill = document.getElementById(`prog-${ev.agent_id}`);
+    const pct  = document.getElementById(`pct-${ev.agent_id}`);
+    if (fill) fill.style.width = ev.progress + '%';
+    if (pct)  pct.textContent  = ev.progress + '%';
+  }
+  if (ev.log) {
+    const logEl = document.getElementById(`agent-log-${ev.agent_id}`);
+    if (logEl) {
+      const ICON  = { info:'→', ok:'✓', warn:'⚠', error:'✕', tool:'⚙' };
+      const CLASS = { info:'log-info', ok:'log-ok', warn:'log-warn', error:'log-error', tool:'log-info' };
+      const t  = new Date(ev.log.ts || Date.now()).toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit'});
+      const lv = ev.log.level || 'info';
+      const line = document.createElement('div');
+      line.className = 'agent-log-line';
+      line.innerHTML = `<span class="log-time">${t}</span><span class="${CLASS[lv]||'log-info'}">${ICON[lv]||'→'}</span><span>${ev.log.msg}</span>`;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+  }
+  if (ev.status === 'completed' || ev.status === 'error') loadAgents();
+}
+
+/* ═══════════════════════════════
+   INIT
+═══════════════════════════════ */
+async function init() {
+  const online = await checkBackend();
+  if (online) loadProjects();
+}
+init();
+
+async function initGraph() {
+  requestAnimationFrame(async () => {
     const container = document.getElementById('graph-canvas');
     const rect = container.getBoundingClientRect();
     const W = rect.width  || 800;
     const H = rect.height || 500;
-    _buildGraph(W, H);
+    try {
+      const g = await API.get('/api/graph');
+      if (!g.nodes || g.nodes.length === 0) {
+        document.getElementById('graph-svg').innerHTML =
+          `<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="#64748b" font-family="system-ui" font-size="13">No data yet — seed the workspace to see the graph</text>`;
+        return;
+      }
+      _buildGraph(W, H, g.nodes, g.edges);
+    } catch(e) {
+      console.error('initGraph:', e);
+      document.getElementById('graph-svg').innerHTML =
+        `<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="#64748b" font-family="system-ui" font-size="13">Backend offline — start the server to see the graph</text>`;
+    }
   });
 }
 
-function _buildGraph(W, H) {
-  const NODES = [
-    // Projects
-    { id:'p1',   label:'Personal AI OS',   type:'project', r:22 },
-    { id:'p2',   label:'Home Renovation',  type:'project', r:22 },
-    { id:'p3',   label:'Portfolio Q2',     type:'project', r:22 },
-    // Articles
-    { id:'a1',   label:'Second Brain',     type:'article', r:11 },
-    { id:'a2',   label:'Iron Man HUD',     type:'article', r:11 },
-    { id:'a3',   label:'RDF vs PropGraph', type:'article', r:11 },
-    { id:'a4',   label:'Intl ETF 2026',    type:'article', r:11 },
-    { id:'a5',   label:'Wet Room Guide',   type:'article', r:11 },
-    // Notes
-    { id:'n1',   label:'Voice Brainstorm', type:'note',    r:11 },
-    { id:'n2',   label:'Contractor Notes', type:'note',    r:11 },
-    { id:'n3',   label:'Q2 Rebal Plan',    type:'note',    r:11 },
-    { id:'n4',   label:'ADR-001 Draft',    type:'note',    r:11 },
-    // PDFs
-    { id:'pdf1', label:'BuildRight Quote', type:'pdf',     r:11 },
-    { id:'pdf2', label:'Architect Plans',  type:'pdf',     r:11 },
-    { id:'pdf3', label:'Q1 Perf Report',   type:'pdf',     r:11 },
-    { id:'pdf4', label:'Tax Strategy',     type:'pdf',     r:11 },
-    // Videos
-    { id:'v1',   label:'WWDC: Voice',      type:'video',   r:11 },
-    { id:'v2',   label:'Reno Walkthrough', type:'video',   r:11 },
-    { id:'v3',   label:'Factor Investing', type:'video',   r:11 },
-    // Artifacts
-    { id:'art1', label:'UI Mockup v1',     type:'artifact',r:12 },
-    { id:'art2', label:'jarvis-os.html',   type:'artifact',r:14 },
-    { id:'art3', label:'ADR Log',          type:'artifact',r:12 },
-    { id:'art4', label:'Budget Tracker',   type:'artifact',r:12 },
-    { id:'art5', label:'Chat History',     type:'artifact',r:12 },
-  ];
+function _buildGraph(W, H, apiNodes, apiEdges) {
+  // Map API nodes to D3 format
+  const NODES = apiNodes.map(n => ({
+    id:    n.id,
+    label: n.label,
+    type:  n.type,
+    color: n.color,
+    desc:  n.description || '',
+    tags:  n.tags || [],
+    r:     n.type === 'project' ? 22 : n.type === 'decision' ? 14 : 11,
+  }));
 
-  const LINKS = [
-    // Project → children
-    {s:'p1', t:'a1'}, {s:'p1', t:'a2'}, {s:'p1', t:'a3'},
-    {s:'p1', t:'n1'}, {s:'p1', t:'n4'},
-    {s:'p1', t:'v1'},
-    {s:'p1', t:'art1'}, {s:'p1', t:'art2'}, {s:'p1', t:'art3'}, {s:'p1', t:'art5'},
-    {s:'p2', t:'a5'},
-    {s:'p2', t:'n2'},
-    {s:'p2', t:'pdf1'}, {s:'p2', t:'pdf2'},
-    {s:'p2', t:'v2'},
-    {s:'p2', t:'art4'},
-    {s:'p3', t:'a4'},
-    {s:'p3', t:'n3'},
-    {s:'p3', t:'pdf3'}, {s:'p3', t:'pdf4'},
-    {s:'p3', t:'v3'},
-    // Cross-links (nodes shared between projects / referencing each other)
-    {s:'n1', t:'a2'},    // voice note cites iron man article
-    {s:'n4', t:'a3'},    // ADR draft cites RDF article
-    {s:'art3', t:'n4'},  // ADR log contains the draft
-    {s:'a1', t:'p3'},    // Second Brain also relevant to portfolio tracking
-  ].map(l => ({ source: l.s, target: l.t }));
+  // Map API edges to D3 links
+  const LINKS = apiEdges.map(e => ({ source: e.source, target: e.target, relation: e.relation || '' }));
 
   const COLORS = {
-    project: '#00d4ff',
-    article: '#3b82f6',
-    note:    '#10b981',
-    pdf:     '#f59e0b',
-    video:   '#ec4899',
-    artifact:'#8b5cf6',
+    project: '#00d4ff', article: '#3b82f6', note: '#10b981',
+    pdf: '#f59e0b', video: '#ec4899', artifact: '#8b5cf6', decision: '#3b82f6',
   };
-
   const EMOJI = {
     project: '📁', article: '📰', note: '📝',
-    pdf: '📄', video: '🎬', artifact: '🎨',
+    pdf: '📄', video: '🎬', artifact: '🎨', decision: '⚖️',
   };
+
+  // Build lookup from live node data for the detail panel
+  const nodeById = Object.fromEntries(NODES.map(n => [n.id, n]));
 
   const svgEl = document.getElementById('graph-svg');
   svgEl.innerHTML = ''; // clear any previous render
@@ -1698,7 +1863,7 @@ function _buildGraph(W, H) {
       .on('drag', (e,d)=>{ d.fx=e.x; d.fy=e.y; })
       .on('end',  (e,d)=>{ if(!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; })
     )
-    .on('click',(e,d) => nodeClick(d, LINKS, COLORS, NODES));
+    .on('click',(e,d) => nodeClick(d, LINKS, COLORS, NODES, nodeById));
 
   // Outer glow ring for projects
   nodeG.filter(d => d.type==='project')
@@ -1741,8 +1906,9 @@ function _buildGraph(W, H) {
   });
 }
 
-function nodeClick(d, links, colors, nodes) {
-  const meta = NODE_META[d.id] || { tag: d.type, emoji: '●', desc: '' };
+function nodeClick(d, links, colors, nodes, nodeById) {
+  const nd = nodeById ? nodeById[d.id] : d;
+  const meta = { tag: (nd && nd.type) || d.type, emoji: '●', desc: (nd && nd.desc) || '' };
   const connCount = links.filter(l =>
     (l.source.id||l.source)===d.id || (l.target.id||l.target)===d.id
   ).length;

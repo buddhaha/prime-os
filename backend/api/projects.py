@@ -20,12 +20,12 @@ router = APIRouter(prefix="/api/projects", tags=["projects"])
 
 # ── Projects ──────────────────────────────────
 
-@router.get("/", response_model=list[Project])
+@router.get("", response_model=list[Project])
 async def list_projects(store: FileStore = Depends(get_store)):
     return await asyncio.to_thread(store.list_projects)
 
 
-@router.post("/", response_model=Project, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=Project, status_code=status.HTTP_201_CREATED)
 async def create_project(
     data: ProjectCreate,
     store: FileStore  = Depends(get_store),

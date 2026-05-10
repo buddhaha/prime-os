@@ -18,23 +18,16 @@ router = APIRouter(prefix="/api/agents", tags=["agents"])
 
 
 # ── Agent registry ─────────────────────────────
+# NOTE: All fixed-path routes MUST come before /{agent_id} to avoid wildcard capture.
 
-@router.get("/", response_model=list[Agent])
+@router.get("", response_model=list[Agent])
 async def list_agents(store: FileStore = Depends(get_store)):
     return await asyncio.to_thread(store.list_agents)
 
 
-@router.post("/", response_model=Agent, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=Agent, status_code=status.HTTP_201_CREATED)
 async def create_agent(data: AgentCreate, store: FileStore = Depends(get_store)):
     return await asyncio.to_thread(store.create_agent, data)
-
-
-@router.get("/{agent_id}", response_model=Agent)
-async def get_agent(agent_id: str, store: FileStore = Depends(get_store)):
-    agent = await asyncio.to_thread(store.get_agent, agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found")
-    return agent
 
 
 # ── Task queue ─────────────────────────────────
@@ -42,27 +35,6 @@ async def get_agent(agent_id: str, store: FileStore = Depends(get_store)):
 @router.get("/queue", response_model=list[AgentTask])
 async def get_queue(store: FileStore = Depends(get_store)):
     return await asyncio.to_thread(store.list_queue)
-
-
-@router.post("/{agent_id}/tasks", response_model=AgentRun, status_code=status.HTTP_201_CREATED)
-async def enqueue_and_run(
-    agent_id: str,
-    data: AgentTaskCreate,
-    store:   FileStore    = Depends(get_store),
-    runtime: AgentRuntime = Depends(get_runtime),
-):
-    """
-    Enqueue a task for an agent AND immediately start it.
-    For deferred execution, POST to /api/queue instead.
-    """
-    agent = await asyncio.to_thread(store.get_agent, agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found")
-
-    data.agent_id = agent_id
-    task = await asyncio.to_thread(store.enqueue_task, data)
-    run = await runtime.start_run(agent, task)
-    return run
 
 
 @router.post("/queue", response_model=AgentTask, status_code=status.HTTP_201_CREATED)
@@ -117,6 +89,37 @@ async def pause_run(run_id: str, runtime: AgentRuntime = Depends(get_runtime)):
     if not ok:
         raise HTTPException(status_code=404, detail="Run not found or already finished")
     return {"paused": run_id}
+
+
+# ── Per-agent routes (wildcard — must be LAST) ──
+
+@router.get("/{agent_id}", response_model=Agent)
+async def get_agent(agent_id: str, store: FileStore = Depends(get_store)):
+    agent = await asyncio.to_thread(store.get_agent, agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    return agent
+
+
+@router.post("/{agent_id}/tasks", response_model=AgentRun, status_code=status.HTTP_201_CREATED)
+async def enqueue_and_run(
+    agent_id: str,
+    data: AgentTaskCreate,
+    store:   FileStore    = Depends(get_store),
+    runtime: AgentRuntime = Depends(get_runtime),
+):
+    """
+    Enqueue a task for an agent AND immediately start it.
+    For deferred execution, POST to /api/agents/queue instead.
+    """
+    agent = await asyncio.to_thread(store.get_agent, agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    data.agent_id = agent_id
+    task = await asyncio.to_thread(store.enqueue_task, data)
+    run = await runtime.start_run(agent, task)
+    return run
 
 
 # ── WebSocket — real-time agent events ─────────
