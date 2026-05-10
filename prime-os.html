@@ -312,12 +312,61 @@
   .proj-detail.visible { display: block; }
 
   .proj-header { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+  .proj-header-actions { margin-left: auto; display: flex; gap: 8px; }
   .back-btn {
     background: var(--bg2); border: 1px solid var(--border);
     color: var(--text-dim); padding: 7px 15px; border-radius: 8px;
     cursor: pointer; font-size: 13px; transition: all 0.2s;
   }
   .back-btn:hover { color: var(--cyan); border-color: var(--cyan-dim); }
+
+  /* ── Modal ─────────────────────────────────── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0,0,0,.6); backdrop-filter: blur(4px);
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 16px; padding: 28px; width: 480px; max-width: 95vw;
+    max-height: 85vh; overflow-y: auto;
+    box-shadow: 0 24px 60px rgba(0,0,0,.5);
+  }
+  .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 20px; }
+  .form-group { margin-bottom: 16px; }
+  .form-label { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-dim); margin-bottom: 6px; display: block; }
+  .form-input, .form-select, .form-textarea {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 9px 12px; color: var(--text); font-size: 13px;
+    font-family: inherit; box-sizing: border-box; transition: border-color .2s;
+  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus {
+    outline: none; border-color: var(--cyan-dim);
+  }
+  .form-textarea { min-height: 80px; resize: vertical; }
+  .form-row { display: flex; gap: 12px; }
+  .form-row .form-group { flex: 1; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 22px; }
+  .btn-primary {
+    background: var(--cyan); color: #000; border: none;
+    padding: 9px 20px; border-radius: 8px; font-size: 13px;
+    font-weight: 600; cursor: pointer; transition: opacity .2s;
+  }
+  .btn-primary:hover { opacity: .85; }
+  .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-cancel {
+    background: var(--bg3); border: 1px solid var(--border);
+    color: var(--text-dim); padding: 9px 18px; border-radius: 8px;
+    font-size: 13px; cursor: pointer;
+  }
+  .add-resource-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--bg3); border: 1px dashed var(--border);
+    color: var(--text-dim); padding: 8px 14px; border-radius: 8px;
+    font-size: 12px; cursor: pointer; margin-bottom: 14px; transition: all .2s;
+  }
+  .add-resource-btn:hover { border-color: var(--cyan-dim); color: var(--cyan); }
 
   .proj-tabs {
     display: flex; gap: 3px;
@@ -816,7 +865,10 @@
   <section class="view" id="view-projects">
 
     <div id="proj-list">
-      <div class="section-title" id="proj-count-title">Projects <small>loading…</small></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+        <div class="section-title" style="margin-bottom:0" id="proj-count-title">Projects <small id="proj-active-count">loading…</small></div>
+        <button class="btn-primary" style="font-size:13px;padding:7px 16px;border-radius:8px" onclick="openProjModal()">+ New Project</button>
+      </div>
       <div class="projects-grid" id="projects-grid">
         <!-- populated by loadProjects() -->
       </div>
@@ -831,6 +883,9 @@
           <div style="font-size:17px;font-weight:600" id="d-name">—</div>
           <div style="font-size:12px;color:var(--text-dim)" id="d-desc">—</div>
         </div>
+        <div class="proj-header-actions">
+          <button class="btn-cancel" style="font-size:12px;padding:5px 12px;border-radius:7px" onclick="openProjModal(curProject && curProject.project)">✏️ Edit</button>
+        </div>
       </div>
 
       <div class="proj-tabs">
@@ -842,7 +897,10 @@
 
       <div class="tab-content active" id="tab-timeline"><div class="timeline" id="tl-content"></div></div>
       <div class="tab-content" id="tab-todos"><div id="todos-content"></div></div>
-      <div class="tab-content" id="tab-documents"><div class="docs-grid" id="docs-content"></div></div>
+      <div class="tab-content" id="tab-documents">
+        <button class="add-resource-btn" onclick="openResourceModal()">+ Add resource</button>
+        <div class="docs-grid" id="docs-content"></div>
+      </div>
       <div class="tab-content" id="tab-concepts"><div id="concepts-content"></div></div>
     </div>
 
@@ -1135,6 +1193,15 @@ const API = {
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
     return r.json();
   },
+  async patch(path, body) {
+    const r = await fetch(path, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+    return r.json();
+  },
 };
 
 async function checkBackend() {
@@ -1189,10 +1256,10 @@ function renderDashboardStrip(projects) {
 }
 
 function renderProjectCards(projects) {
-  const titleEl = document.getElementById('proj-count-title');
-  const gridEl  = document.getElementById('projects-grid');
-  const active  = projects.filter(p => p.status === 'active').length;
-  titleEl.innerHTML = `Projects <small>${active} active</small>`;
+  const gridEl   = document.getElementById('projects-grid');
+  const countEl  = document.getElementById('proj-active-count');
+  const active   = projects.filter(p => p.status === 'active').length;
+  if (countEl) countEl.textContent = `${active} active`;
   gridEl.innerHTML  = projects.map(p => {
     const rgb = hexToRgb(p.color);
     return `
@@ -1798,6 +1865,244 @@ function nodeClick(d, links, colors, nodes, nodeById) {
     </div>` : ''}
   `;
 }
+
+/* ═══════════════════════════════
+   CRUD — Projects & Resources
+═══════════════════════════════ */
+
+// ── Project modal ──────────────────────────────
+
+function openProjModal(project = null) {
+  const isEdit = !!project;
+  document.getElementById('proj-modal-title').textContent = isEdit ? 'Edit Project' : 'New Project';
+  document.getElementById('proj-modal-id').value          = isEdit ? project.id          : '';
+  document.getElementById('proj-modal-name').value        = isEdit ? project.name         : '';
+  document.getElementById('proj-modal-emoji').value       = isEdit ? project.emoji        : '📁';
+  document.getElementById('proj-modal-desc').value        = isEdit ? project.description  : '';
+  document.getElementById('proj-modal-color').value       = isEdit ? (project.color || '#00d4ff') : '#00d4ff';
+  document.getElementById('proj-modal-status').value      = isEdit ? project.status       : 'active';
+  document.getElementById('proj-modal-type').value        = isEdit ? project.project_type : 'personal';
+  document.getElementById('proj-modal-tags').value        = isEdit ? (project.tags || []).join(', ') : '';
+  document.getElementById('proj-modal-err').textContent   = '';
+  document.getElementById('proj-modal-save').disabled     = false;
+  document.getElementById('proj-modal-save').textContent  = 'Save';
+  document.getElementById('proj-modal').classList.add('open');
+  setTimeout(() => document.getElementById('proj-modal-name').focus(), 60);
+}
+
+function closeProjModal() {
+  document.getElementById('proj-modal').classList.remove('open');
+}
+
+async function saveProjModal() {
+  const id    = document.getElementById('proj-modal-id').value;
+  const isEdit = !!id;
+  const errEl  = document.getElementById('proj-modal-err');
+  const saveBtn = document.getElementById('proj-modal-save');
+
+  const payload = {
+    name:         document.getElementById('proj-modal-name').value.trim(),
+    emoji:        document.getElementById('proj-modal-emoji').value.trim() || '📁',
+    description:  document.getElementById('proj-modal-desc').value.trim(),
+    color:        document.getElementById('proj-modal-color').value,
+    status:       document.getElementById('proj-modal-status').value,
+    project_type: document.getElementById('proj-modal-type').value,
+    tags:         document.getElementById('proj-modal-tags').value
+                    .split(',').map(t => t.trim()).filter(Boolean),
+  };
+
+  if (!payload.name) { errEl.textContent = 'Name is required.'; return; }
+
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving…';
+  errEl.textContent = '';
+
+  try {
+    if (isEdit) {
+      await API.patch(`/api/projects/${id}`, payload);
+      closeProjModal();
+      await loadProjects();
+      openProjectById(id);
+    } else {
+      const created = await API.post('/api/projects', payload);
+      closeProjModal();
+      await loadProjects();
+      openProjectById(created.id);
+    }
+  } catch(e) {
+    errEl.textContent = 'Save failed — check console.';
+    console.error('saveProjModal:', e);
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Save';
+  }
+}
+
+// ── Resource modal ──────────────────────────────
+
+function openResourceModal() {
+  if (!curProject) return;
+  document.getElementById('res-modal-title-input').value = '';
+  document.getElementById('res-modal-type').value        = 'article';
+  document.getElementById('res-modal-url').value         = '';
+  document.getElementById('res-modal-desc').value        = '';
+  document.getElementById('res-modal-err').textContent   = '';
+  document.getElementById('res-modal-save').disabled     = false;
+  document.getElementById('res-modal-save').textContent  = 'Save';
+  document.getElementById('res-modal').classList.add('open');
+  setTimeout(() => document.getElementById('res-modal-title-input').focus(), 60);
+}
+
+function closeResourceModal() {
+  document.getElementById('res-modal').classList.remove('open');
+}
+
+async function saveResource() {
+  const errEl   = document.getElementById('res-modal-err');
+  const saveBtn = document.getElementById('res-modal-save');
+
+  const payload = {
+    title:       document.getElementById('res-modal-title-input').value.trim(),
+    type:        document.getElementById('res-modal-type').value,
+    source_url:  document.getElementById('res-modal-url').value.trim() || null,
+    description: document.getElementById('res-modal-desc').value.trim(),
+    project_ids: curProject ? [curProject.project.id] : [],
+  };
+
+  if (!payload.title) { errEl.textContent = 'Title is required.'; return; }
+
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving…';
+  errEl.textContent = '';
+
+  try {
+    await API.post('/api/resources', payload);
+    closeResourceModal();
+    if (curProject) openProjectById(curProject.project.id);
+  } catch(e) {
+    errEl.textContent = 'Save failed — check console.';
+    console.error('saveResource:', e);
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Save';
+  }
+}
+
+// Close modals on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeProjModal();
+    closeResourceModal();
+  }
+});
+
 </script>
+
+<!-- ━━━ PROJECT MODAL ━━━ -->
+<div class="modal-overlay" id="proj-modal" onclick="if(event.target===this)closeProjModal()">
+  <div class="modal">
+    <div style="font-size:15px;font-weight:700;margin-bottom:20px" id="proj-modal-title">New Project</div>
+    <input type="hidden" id="proj-modal-id">
+
+    <div class="form-row">
+      <div class="form-group" style="flex:0 0 72px">
+        <label class="form-label">Emoji</label>
+        <input class="form-input" id="proj-modal-emoji" value="📁" style="text-align:center;font-size:20px">
+      </div>
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Name *</label>
+        <input class="form-input" id="proj-modal-name" placeholder="Project name">
+      </div>
+      <div class="form-group" style="flex:0 0 52px">
+        <label class="form-label">Color</label>
+        <input type="color" class="form-input" id="proj-modal-color" value="#00d4ff" style="padding:2px 4px;height:38px;cursor:pointer">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Description</label>
+      <textarea class="form-textarea" id="proj-modal-desc" rows="2" placeholder="What is this project about?"></textarea>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Status</label>
+        <select class="form-select" id="proj-modal-status">
+          <option value="active">Active</option>
+          <option value="planning">Planning</option>
+          <option value="on_hold">On Hold</option>
+          <option value="completed">Completed</option>
+          <option value="archived">Archived</option>
+        </select>
+      </div>
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Type</label>
+        <select class="form-select" id="proj-modal-type">
+          <option value="personal">Personal</option>
+          <option value="work">Work</option>
+          <option value="investment">Investment</option>
+          <option value="learning">Learning</option>
+          <option value="home">Home</option>
+          <option value="health">Health</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Tags <small style="color:var(--text-dim)">(comma-separated)</small></label>
+      <input class="form-input" id="proj-modal-tags" placeholder="e.g. ai, coding, 2026">
+    </div>
+
+    <div style="color:#f87171;font-size:12px;min-height:16px;margin-top:4px" id="proj-modal-err"></div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeProjModal()">Cancel</button>
+      <button class="btn-primary" id="proj-modal-save" onclick="saveProjModal()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ━━━ RESOURCE MODAL ━━━ -->
+<div class="modal-overlay" id="res-modal" onclick="if(event.target===this)closeResourceModal()">
+  <div class="modal" style="width:420px">
+    <div style="font-size:15px;font-weight:700;margin-bottom:20px">Add Resource</div>
+
+    <div class="form-group">
+      <label class="form-label">Title *</label>
+      <input class="form-input" id="res-modal-title-input" placeholder="Resource title">
+    </div>
+
+    <div class="form-row">
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Type</label>
+        <select class="form-select" id="res-modal-type">
+          <option value="article">Article</option>
+          <option value="note">Note</option>
+          <option value="pdf">PDF</option>
+          <option value="video">Video</option>
+          <option value="link">Link</option>
+          <option value="artifact">Artifact</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">URL <small style="color:var(--text-dim)">(optional)</small></label>
+      <input class="form-input" id="res-modal-url" placeholder="https://…">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Description</label>
+      <textarea class="form-textarea" id="res-modal-desc" rows="2" placeholder="What's this about?"></textarea>
+    </div>
+
+    <div style="color:#f87171;font-size:12px;min-height:16px;margin-top:4px" id="res-modal-err"></div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeResourceModal()">Cancel</button>
+      <button class="btn-primary" id="res-modal-save" onclick="saveResource()">Save</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
