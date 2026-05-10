@@ -37,7 +37,7 @@ Full architecture: see [ARCHITECTURE.md](ARCHITECTURE.md).
 ### Docker (recommended)
 
 ```bash
-docker compose up
+docker-compose up
 open http://localhost:7474
 ```
 
@@ -47,24 +47,24 @@ The API key is optional — projects, graph, and resources all work without one.
 
 ```bash
 # With an API key (enables agent execution)
-ANTHROPIC_API_KEY=sk-ant-... docker compose up
+ANTHROPIC_API_KEY=sk-ant-... docker-compose up
 
 # Or put it in .env
 cp .env.example .env   # fill in key, then:
-docker compose up
+docker-compose up
 ```
 
 **To re-seed** (wipes existing data in the mounted volume):
 
 ```bash
 rm -rf ~/PRIME
-docker compose run seed
+docker-compose run seed
 ```
 
 To use a different data directory:
 
 ```bash
-PRIME_DATA_DIR=/path/to/your/PRIME docker compose up
+PRIME_DATA_DIR=/path/to/your/PRIME docker-compose up
 ```
 
 ---
