@@ -1,23 +1,19 @@
 """
 PRIME OS — PostgreSQL-backed store (replaces file_store.py).
-
-Keeps the same public interface as FileStore so the API routers
-don't need to change.
 """
 
 from __future__ import annotations
 
 from datetime import date
-from typing import Any
 import uuid
 
-from sqlalchemy import select, func, delete
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ..database import (
     ProjectRow, DecisionRow, TodoRow, ConceptRow, ResourceRow, EdgeRow,
-    resource_projects,
+    ProposalRow, resource_projects,
 )
 from ..models.project import (
     Project, ProjectCreate, ProjectDetail,
@@ -25,7 +21,11 @@ from ..models.project import (
     Todo, TodoCreate, TodoUpdate,
     Concept, ConceptCreate,
 )
-from ..models.resource import Resource, ResourceCreate, ResourceUpdate, Edge, EdgeCreate
+from ..models.resource import (
+    Resource, ResourceCreate, ResourceUpdate, ResourceStatus,
+    Edge, EdgeCreate,
+    Proposal, ProposalCreate, ProposalStatus,
+)
 
 
 def _new_id() -> str:
@@ -104,11 +104,33 @@ def _resource(row: ResourceRow) -> Resource:
         content=row.content or "",
         created=row.created,
         project_ids=[p.id for p in row.projects] if row.projects is not None else [],
+        status=row.status or "inbox",
+        origin=row.origin or "manual",
     )
 
 
 def _edge(row: EdgeRow) -> Edge:
-    return Edge(id=row.id, from_id=row.from_id, to_id=row.to_id, relation=row.relation, note=row.note or "")
+    return Edge(
+        id=row.id, from_id=row.from_id, to_id=row.to_id,
+        relation=row.relation, note=row.note or "",
+    )
+
+
+def _proposal(row: ProposalRow) -> Proposal:
+    return Proposal(
+        id=row.id,
+        project_id=row.project_id,
+        title=row.title,
+        resource_type=row.resource_type,
+        source_url=row.source_url,
+        read_time=row.read_time,
+        why_relevant=row.why_relevant or "",
+        takeaways=row.takeaways or [],
+        gap_type=row.gap_type or "",
+        gap_label=row.gap_label or "",
+        status=row.status or "pending",
+        created=row.created,
+    )
 
 
 # ─────────────────────────────────────────────
@@ -192,10 +214,9 @@ class DBStore:
         row = (await self.session.execute(q)).scalar_one_or_none()
         if not row:
             return None
-        allowed = {"name","emoji","description","color","status","project_type","tags","progress"}
+        allowed = {"name", "emoji", "description", "color", "status", "project_type", "tags", "progress"}
         for k, v in updates.items():
             if k in allowed:
-                # enums arrive as strings from the API
                 setattr(row, k, v.value if hasattr(v, "value") else v)
         row.updated = date.today()
         await self.session.flush()
@@ -215,7 +236,7 @@ class DBStore:
             title=data.title,
             date=date.today(),
             type=data.type.value,
-            status="accepted",          # DecisionCreate has no status field — default accepted
+            status="accepted",
             context=data.context,
             body=data.body,
             consequences=data.consequences,
@@ -261,7 +282,6 @@ class DBStore:
         if data.section is not None:
             row.section = data.section
         await self.session.flush()
-        # recalc project progress
         await self._recalc_progress(project_id)
         return _todo(row)
 
@@ -277,7 +297,7 @@ class DBStore:
         proj = (await self.session.execute(q2)).scalar_one_or_none()
         if proj:
             proj.progress = str(progress)
-            proj.updated  = date.today()
+            proj.updated = date.today()
 
     # ── Concepts ───────────────────────────────
 
@@ -316,8 +336,9 @@ class DBStore:
             tags=data.tags,
             content=data.content,
             created=date.today(),
+            status=data.status.value,
+            origin=data.origin.value,
         )
-        # link to projects
         if data.project_ids:
             proj_q = select(ProjectRow).where(ProjectRow.id.in_(data.project_ids))
             projs = (await self.session.execute(proj_q)).scalars().all()
@@ -338,6 +359,10 @@ class DBStore:
             row.description = data.description
         if data.tags is not None:
             row.tags = data.tags
+        if data.content is not None:
+            row.content = data.content
+        if data.status is not None:
+            row.status = data.status.value
         if data.project_ids is not None:
             proj_q = select(ProjectRow).where(ProjectRow.id.in_(data.project_ids))
             row.projects = (await self.session.execute(proj_q)).scalars().all()
@@ -361,3 +386,66 @@ class DBStore:
         self.session.add(row)
         await self.session.flush()
         return _edge(row)
+
+    # ── Proposals ──────────────────────────────
+
+    async def list_proposals(self, project_id: str | None = None, status: str | None = None) -> list[Proposal]:
+        q = select(ProposalRow).order_by(ProposalRow.created.desc())
+        if project_id:
+            q = q.where(ProposalRow.project_id == project_id)
+        if status:
+            q = q.where(ProposalRow.status == status)
+        rows = (await self.session.execute(q)).scalars().all()
+        return [_proposal(r) for r in rows]
+
+    async def create_proposal(self, data: ProposalCreate) -> Proposal:
+        row = ProposalRow(
+            id=_new_id(),
+            project_id=data.project_id,
+            title=data.title,
+            resource_type=data.resource_type.value,
+            source_url=data.source_url,
+            read_time=data.read_time,
+            why_relevant=data.why_relevant,
+            takeaways=data.takeaways,
+            gap_type=data.gap_type,
+            gap_label=data.gap_label,
+            status="pending",
+            created=date.today(),
+        )
+        self.session.add(row)
+        await self.session.flush()
+        return _proposal(row)
+
+    async def accept_proposal(self, proposal_id: str) -> Resource | None:
+        """Accept a proposal — creates a Resource (origin=suggested) and marks proposal accepted."""
+        q = select(ProposalRow).where(ProposalRow.id == proposal_id)
+        row = (await self.session.execute(q)).scalar_one_or_none()
+        if not row or row.status != "pending":
+            return None
+
+        # Create the resource
+        resource = await self.create_resource(ResourceCreate(
+            type=row.resource_type,
+            title=row.title,
+            description=row.why_relevant,
+            source_url=row.source_url,
+            project_ids=[row.project_id],
+            tags=[row.gap_type, row.gap_label] if row.gap_label else [],
+            status=ResourceStatus.inbox,
+            origin="suggested",
+        ))
+
+        # Mark proposal accepted
+        row.status = "accepted"
+        await self.session.flush()
+        return resource
+
+    async def dismiss_proposal(self, proposal_id: str) -> bool:
+        q = select(ProposalRow).where(ProposalRow.id == proposal_id)
+        row = (await self.session.execute(q)).scalar_one_or_none()
+        if not row:
+            return False
+        row.status = "dismissed"
+        await self.session.flush()
+        return True

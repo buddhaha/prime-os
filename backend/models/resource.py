@@ -1,24 +1,14 @@
-"""
-Resource model — any piece of content captured into the knowledge base.
+"""Resource, Edge, and Proposal models."""
 
-On disk layout:
-  ~/PRIME/knowledge/
-    nodes.json          ← list of Resource objects (index)
-    edges.json          ← list of Edge objects
-    articles/           ← saved Markdown versions of web articles
-    notes/              ← personal notes (.md)
-    pdfs/               ← original PDF files
-    videos/             ← metadata + transcript (.md)
-    artifacts/          ← design files, exports, code, etc.
-"""
-
-from datetime import datetime
+from datetime import date as Date
 from enum import Enum
-from pathlib import Path
-from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
+
+# ─────────────────────────────────────────────
+# Resource
+# ─────────────────────────────────────────────
 
 class ResourceType(str, Enum):
     article  = "article"
@@ -26,96 +16,84 @@ class ResourceType(str, Enum):
     pdf      = "pdf"
     video    = "video"
     artifact = "artifact"
+    link     = "link"
 
 
-# Emoji and color associated with each type — used by graph + UI
-RESOURCE_META: dict[ResourceType, dict[str, str]] = {
-    ResourceType.article:  {"emoji": "📰", "color": "#3b82f6"},
-    ResourceType.note:     {"emoji": "📝", "color": "#10b981"},
-    ResourceType.pdf:      {"emoji": "📄", "color": "#f59e0b"},
-    ResourceType.video:    {"emoji": "🎬", "color": "#ec4899"},
-    ResourceType.artifact: {"emoji": "🎨", "color": "#8b5cf6"},
+class ResourceStatus(str, Enum):
+    inbox     = "inbox"      # added but not yet read
+    reading   = "reading"    # actively in progress
+    processed = "processed"  # read, extracted, linked
+    archived  = "archived"   # done, no longer active
+
+
+class ResourceOrigin(str, Enum):
+    manual    = "manual"     # user added it directly
+    suggested = "suggested"  # PRIME proposed it, user accepted
+
+
+RESOURCE_META: dict[str, dict[str, str]] = {
+    "article":  {"badge": "ART",  "color": "#3b82f6"},
+    "note":     {"badge": "NOTE", "color": "#10b981"},
+    "pdf":      {"badge": "PDF",  "color": "#f59e0b"},
+    "video":    {"badge": "VID",  "color": "#ec4899"},
+    "artifact": {"badge": "OBJ",  "color": "#8b5cf6"},
+    "link":     {"badge": "LINK", "color": "#6366f1"},
 }
 
 
 class Resource(BaseModel):
-    """
-    A node in the knowledge graph.
-    Stored as an entry in ~/PRIME/knowledge/nodes.json.
-    The actual content lives in the type-specific subdirectory.
-    """
     id:          str
     type:        ResourceType
     title:       str
-    description: str  = ""
-
-    # Where the content lives on disk (relative to PRIME root)
-    # e.g. "knowledge/articles/rdf-vs-property-graph.md"
-    path:        str | None = None
-
-    # Original source (URL for articles/videos, None for notes/artifacts)
+    description: str        = ""
     source_url:  str | None = None
-
-    # Which projects reference this resource
-    project_ids: list[str] = Field(default_factory=list)
-
+    project_ids: list[str]  = Field(default_factory=list)
     tags:        list[str]  = Field(default_factory=list)
-    created:     datetime   = Field(default_factory=datetime.utcnow)
-    updated:     datetime   = Field(default_factory=datetime.utcnow)
-
-    # Derived — not stored
-    @property
-    def emoji(self) -> str:
-        return RESOURCE_META[self.type]["emoji"]
-
-    @property
-    def color(self) -> str:
-        return RESOURCE_META[self.type]["color"]
+    content:     str        = ""
+    created:     Date       = Field(default_factory=Date.today)
+    status:      ResourceStatus = ResourceStatus.inbox
+    origin:      ResourceOrigin = ResourceOrigin.manual
 
 
 class ResourceCreate(BaseModel):
     type:        ResourceType
     title:       str
-    description: str       = ""
+    description: str        = ""
     source_url:  str | None = None
     project_ids: list[str]  = Field(default_factory=list)
     tags:        list[str]  = Field(default_factory=list)
-    content:     str        = ""   # initial text content (for notes/articles)
+    content:     str        = ""
+    status:      ResourceStatus = ResourceStatus.inbox
+    origin:      ResourceOrigin = ResourceOrigin.manual
 
 
 class ResourceUpdate(BaseModel):
-    title:       str | None        = None
-    description: str | None        = None
-    project_ids: list[str] | None  = None
-    tags:        list[str] | None  = None
+    title:       str | None             = None
+    description: str | None             = None
+    project_ids: list[str] | None       = None
+    tags:        list[str] | None       = None
+    status:      ResourceStatus | None  = None
+    content:     str | None             = None
 
 
 # ─────────────────────────────────────────────
-# Graph edge — relationship between any two nodes
+# Graph edges
 # ─────────────────────────────────────────────
 
 class RelationType(str, Enum):
-    # project ↔ resource
-    contains    = "contains"    # project → resource (owns it)
-    references  = "references"  # resource → resource (cites/links)
-    # decision ↔ resource
-    cites       = "cites"
-    # general
-    related_to  = "related_to"
-    supersedes  = "supersedes"
+    contains   = "contains"
+    references = "references"
+    cites      = "cites"
+    related_to = "related_to"
+    supersedes = "supersedes"
 
 
 class Edge(BaseModel):
-    """
-    A directed edge in the knowledge graph.
-    Stored in ~/PRIME/knowledge/edges.json.
-    Both 'from_id' and 'to_id' can be project IDs, resource IDs, or decision IDs.
-    """
     id:       str
     from_id:  str
     to_id:    str
     relation: RelationType = RelationType.related_to
-    note:     str = ""   # optional human label on the edge
+    note:     str = ""
 
 
 class EdgeCreate(BaseModel):
@@ -123,3 +101,40 @@ class EdgeCreate(BaseModel):
     to_id:    str
     relation: RelationType = RelationType.related_to
     note:     str = ""
+
+
+# ─────────────────────────────────────────────
+# Proposals — PRIME OS suggested resources
+# ─────────────────────────────────────────────
+
+class ProposalStatus(str, Enum):
+    pending   = "pending"
+    accepted  = "accepted"
+    dismissed = "dismissed"
+
+
+class Proposal(BaseModel):
+    id:            str
+    project_id:    str
+    title:         str
+    resource_type: ResourceType
+    source_url:    str | None = None
+    read_time:     str | None = None   # e.g. "18 min read"
+    why_relevant:  str        = ""     # 2-3 sentences of project-specific context
+    takeaways:     list[str]  = Field(default_factory=list)  # 3 bullet points
+    gap_type:      str        = ""     # "concept" | "todo" | "decision"
+    gap_label:     str        = ""     # name of the concept/todo that triggered this
+    status:        ProposalStatus = ProposalStatus.pending
+    created:       Date       = Field(default_factory=Date.today)
+
+
+class ProposalCreate(BaseModel):
+    project_id:    str
+    title:         str
+    resource_type: ResourceType
+    source_url:    str | None = None
+    read_time:     str | None = None
+    why_relevant:  str        = ""
+    takeaways:     list[str]  = Field(default_factory=list)
+    gap_type:      str        = ""
+    gap_label:     str        = ""

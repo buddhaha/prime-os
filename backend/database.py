@@ -152,8 +152,29 @@ class ResourceRow(Base):
     tags        = Column(ARRAY(String), default=list)
     content     = Column(Text,   default="")
     created     = Column(Date,   default=date.today)
+    status      = Column(String, default="inbox")     # inbox | reading | processed | archived
+    origin      = Column(String, default="manual")    # manual | suggested
 
     projects = relationship("ProjectRow", secondary=resource_projects, back_populates="resources")
+
+
+class ProposalRow(Base):
+    __tablename__ = "proposals"
+
+    id            = Column(String, primary_key=True, default=new_id)
+    project_id    = Column(String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    title         = Column(String, nullable=False)
+    resource_type = Column(String, nullable=False)
+    source_url    = Column(String, nullable=True)
+    read_time     = Column(String, nullable=True)
+    why_relevant  = Column(Text,   default="")
+    takeaways     = Column(JSONB,  default=list)   # list[str]
+    gap_type      = Column(String, default="")     # "concept" | "todo" | "decision"
+    gap_label     = Column(String, default="")     # name of the triggering gap
+    status        = Column(String, default="pending")  # pending | accepted | dismissed
+    created       = Column(Date,   default=date.today)
+
+    project = relationship("ProjectRow")
 
 
 class EdgeRow(Base):

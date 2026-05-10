@@ -439,19 +439,87 @@
   .p-med  { background: rgba(245,158,11,.1); color: var(--amber); }
   .p-low  { background: rgba(100,116,139,.1); color: var(--text-dim); }
 
-  /* Docs */
-  .docs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 11px; }
-  .doc-card {
-    background: var(--bg2); border: 1px solid var(--border);
-    border-radius: 11px; padding: 15px;
-    cursor: pointer; transition: all 0.2s; text-align: center;
+  /* Docs toolbar */
+  .docs-toolbar { display: flex; gap: 8px; margin-bottom: 18px; align-items: center; }
+  .analyze-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(0,212,255,.08); border: 1px solid var(--cyan-dim);
+    color: var(--cyan); padding: 8px 14px; border-radius: 8px;
+    font-size: 12px; cursor: pointer; transition: all .2s;
   }
-  .doc-card:hover { border-color: var(--cyan-dim); transform: translateY(-2px); }
-  .doc-card-link { cursor: pointer; }
-  .doc-card-link:hover { border-color: var(--cyan); }
-  .doc-icon { font-size: 10px; font-weight: 600; letter-spacing: .1em; color: var(--cyan); background: rgba(0,212,255,.08); border: 1px solid rgba(0,212,255,.2); border-radius: 4px; padding: 3px 7px; margin-bottom: 10px; display: inline-block; }
-  .doc-name { font-size: 12px; font-weight: 500; margin-bottom: 4px; }
-  .doc-meta { font-size: 10px; color: var(--text-dim); }
+  .analyze-btn:hover { background: rgba(0,212,255,.15); }
+  .analyze-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* Docs — inbox sections */
+  .docs-section { margin-bottom: 22px; }
+  .docs-section-header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+  .docs-section-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); }
+  .docs-count-badge { font-size: 10px; font-weight: 600; background: var(--cyan); color: #000; border-radius: 20px; padding: 1px 7px; }
+  .docs-count-badge.amber { background: #f59e0b; }
+  .docs-count-badge.green { background: #10b981; }
+
+  /* Inbox row card */
+  .doc-row {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px;
+    display: flex; align-items: flex-start; gap: 11px;
+    margin-bottom: 6px; transition: border-color .15s;
+  }
+  .doc-row:hover { border-color: var(--cyan-dim); }
+  .doc-row.inbox-item { border-left: 2px solid var(--cyan); border-radius: 0 10px 10px 0; }
+  .doc-row.processed { opacity: .6; }
+  .doc-badge { font-size: 10px; font-weight: 600; letter-spacing: .05em; padding: 3px 7px; border-radius: 4px; flex-shrink: 0; margin-top: 1px; }
+  .db-art  { background: rgba(59,130,246,.12); color: #60a5fa; }
+  .db-note { background: rgba(16,185,129,.12); color: #34d399; }
+  .db-pdf  { background: rgba(245,158,11,.12); color: #fbbf24; }
+  .db-vid  { background: rgba(236,72,153,.12);  color: #f472b6; }
+  .db-link { background: rgba(99,102,241,.12);  color: #a5b4fc; }
+  .db-obj  { background: rgba(139,92,246,.12);  color: #c4b5fd; }
+  .doc-row-body { flex: 1; min-width: 0; }
+  .doc-row-title { font-size: 13px; font-weight: 500; color: var(--text); line-height: 1.4; }
+  .doc-row-meta  { font-size: 11px; color: var(--text-dim); margin-top: 3px; }
+  .doc-row-actions { margin-left: auto; display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
+  .doc-status-chip { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 500; }
+  .dsc-inbox    { background: rgba(0,212,255,.1);  color: var(--cyan); }
+  .dsc-reading  { background: rgba(245,158,11,.1); color: #fbbf24; }
+  .dsc-processed{ background: rgba(16,185,129,.1); color: #34d399; }
+  .doc-btn { font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-dim); cursor: pointer; white-space: nowrap; }
+  .doc-btn:hover { background: var(--bg3); color: var(--text); }
+  .doc-btn-primary { background: rgba(0,212,255,.12); border-color: var(--cyan-dim); color: var(--cyan); }
+  .doc-btn-primary:hover { background: rgba(0,212,255,.2); }
+  .unread-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--cyan); flex-shrink: 0; margin-top: 5px; }
+
+  /* Proposal cards */
+  .proposal-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden; margin-bottom: 8px;
+  }
+  .proposal-card:hover { border-color: var(--cyan-dim); }
+  .proposal-header { padding: 13px 15px 10px; display: flex; align-items: flex-start; gap: 10px; }
+  .proposal-body { padding: 0 15px 13px; display: flex; flex-direction: column; gap: 9px; }
+  .proposal-block {
+    background: var(--bg3); border-radius: 7px; padding: 10px 12px;
+  }
+  .pb-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--text-dim); margin-bottom: 5px; }
+  .pb-text { font-size: 12px; color: var(--text-dim); line-height: 1.6; }
+  .pb-text em { color: var(--text); font-style: normal; font-weight: 500; }
+  .pb-list { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+  .pb-list li { font-size: 12px; color: var(--text-dim); line-height: 1.5; padding-left: 14px; position: relative; }
+  .pb-list li::before { content: ''; position: absolute; left: 0; top: 7px; width: 4px; height: 4px; border-radius: 50%; background: var(--text-dim); }
+  .proposal-footer {
+    padding: 9px 15px; border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .gap-tag { font-size: 11px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+  .gap-pill { font-size: 10px; padding: 2px 8px; border-radius: 20px; background: rgba(139,92,246,.1); color: #c4b5fd; font-weight: 500; }
+  .origin-prime { font-size: 10px; padding: 2px 7px; border-radius: 20px; font-weight: 500; background: rgba(16,185,129,.1); color: #34d399; }
+  .prime-header-banner {
+    background: rgba(16,185,129,.06); border: 1px solid rgba(16,185,129,.2);
+    border-radius: 9px; padding: 10px 14px; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12px; color: var(--text-dim); line-height: 1.5;
+  }
+  .prime-header-banner strong { color: var(--text); font-weight: 500; }
 
   /* Concepts */
   .concept-item {
@@ -906,8 +974,11 @@
       <div class="tab-content active" id="tab-timeline"><div class="timeline" id="tl-content"></div></div>
       <div class="tab-content" id="tab-todos"><div id="todos-content"></div></div>
       <div class="tab-content" id="tab-documents">
-        <button class="add-resource-btn" onclick="openResourceModal()">+ Add resource</button>
-        <div class="docs-grid" id="docs-content"></div>
+        <div class="docs-toolbar">
+          <button class="add-resource-btn" onclick="openResourceModal()">+ Add resource</button>
+          <button class="analyze-btn" id="analyze-btn" onclick="analyzeProject()">Analyze gaps</button>
+        </div>
+        <div id="docs-content"></div>
       </div>
       <div class="tab-content" id="tab-concepts"><div id="concepts-content"></div></div>
     </div>
@@ -1301,9 +1372,10 @@ async function openProjectById(id) {
   document.getElementById('concepts-content').innerHTML = '';
 
   try {
-    const [detail, resources] = await Promise.all([
+    const [detail, resources, proposals] = await Promise.all([
       API.get(`/api/projects/${id}`),
       API.get(`/api/resources?project_id=${id}`),
+      API.get(`/api/proposals?project_id=${id}&status=pending`),
     ]);
     const proj = detail.project;
     curProject = detail;
@@ -1353,8 +1425,8 @@ async function openProjectById(id) {
     // Concepts
     renderConcepts(detail.concepts || []);
 
-    // Resources → docs
-    renderDocs(resources);
+    // Resources + proposals → docs inbox
+    renderDocs(resources, proposals || []);
 
   } catch(e) {
     console.error('openProjectById:', e);
@@ -1411,25 +1483,203 @@ function renderTodos(sections) {
     </div>`).join('');
 }
 
-function renderDocs(resources) {
-  if (!resources.length) {
-    document.getElementById('docs-content').innerHTML =
-      '<div style="color:var(--text-dim);font-size:13px;padding:16px 0">No resources yet — add one above.</div>';
-    return;
+const BADGE_CLASS = { article:'db-art', note:'db-note', pdf:'db-pdf', video:'db-vid', link:'db-link', artifact:'db-obj' };
+
+function docBadge(type) {
+  return `<span class="doc-badge ${BADGE_CLASS[type]||'db-art'}">${TYPE_ICON[type]||'FILE'}</span>`;
+}
+
+function docOriginTag(origin) {
+  if (origin === 'suggested') return `<span class="origin-prime">PRIME</span>`;
+  return '';
+}
+
+function docMetaLine(r) {
+  const parts = [];
+  if (r.origin === 'suggested') parts.push('Suggested by PRIME');
+  else parts.push('Added by you');
+  if (r.created) parts.push(r.created);
+  return parts.join(' · ');
+}
+
+function renderDocRow(r) {
+  const status    = r.status || 'inbox';
+  const isInbox   = status === 'inbox';
+  const isReading = status === 'reading';
+  const isDone    = status === 'processed' || status === 'archived';
+  const chipClass = { inbox:'dsc-inbox', reading:'dsc-reading', processed:'dsc-processed', archived:'dsc-processed' }[status] || 'dsc-inbox';
+  const chipLabel = { inbox:'inbox', reading:'reading', processed:'processed', archived:'archived' }[status] || status;
+
+  let actionBtn = '';
+  if (isInbox)   actionBtn = `<button class="doc-btn doc-btn-primary" onclick="setResourceStatus('${r.id}','reading')">Start reading</button>`;
+  if (isReading) actionBtn = `<button class="doc-btn doc-btn-primary" onclick="setResourceStatus('${r.id}','processed')">Mark processed</button>`;
+
+  return `
+  <div class="doc-row ${isInbox?'inbox-item':''} ${isDone?'processed':''}" id="doc-row-${r.id}">
+    ${isInbox ? '<div class="unread-dot"></div>' : ''}
+    ${docBadge(r.type)}
+    <div class="doc-row-body">
+      <div class="doc-row-title">${r.source_url
+        ? `<a href="${r.source_url}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${r.title}</a>`
+        : r.title}</div>
+      <div class="doc-row-meta">${docMetaLine(r)}</div>
+    </div>
+    <div class="doc-row-actions">
+      ${docOriginTag(r.origin)}
+      <span class="doc-status-chip ${chipClass}">${chipLabel}</span>
+      ${actionBtn}
+    </div>
+  </div>`;
+}
+
+function renderProposalCard(p) {
+  const takeaways = (p.takeaways || []).map(t => `<li>${t}</li>`).join('');
+  return `
+  <div class="proposal-card" id="proposal-${p.id}">
+    <div class="proposal-header">
+      ${docBadge(p.resource_type)}
+      <div style="flex:1;min-width:0;">
+        <div class="doc-row-title">${p.source_url
+          ? `<a href="${p.source_url}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${p.title}</a>`
+          : p.title}</div>
+        <div class="doc-row-meta">${[p.source_url ? (()=>{try{return new URL(p.source_url).hostname}catch{return p.source_url}})() : null, p.read_time].filter(Boolean).join(' · ')}</div>
+      </div>
+      <span class="origin-prime" style="flex-shrink:0;margin-top:1px;">PRIME</span>
+    </div>
+    <div class="proposal-body">
+      <div class="proposal-block">
+        <div class="pb-label">Why it's relevant</div>
+        <div class="pb-text">${p.why_relevant}</div>
+      </div>
+      ${takeaways ? `
+      <div class="proposal-block">
+        <div class="pb-label">Key takeaways</div>
+        <ul class="pb-list">${takeaways}</ul>
+      </div>` : ''}
+    </div>
+    <div class="proposal-footer">
+      <div class="gap-tag">
+        Fills gap for ${p.gap_type} <span class="gap-pill">${p.gap_label}</span>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="doc-btn" onclick="dismissProposal('${p.id}')">Dismiss</button>
+        <button class="doc-btn doc-btn-primary" onclick="acceptProposal('${p.id}')">Add to inbox</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderDocs(resources, proposals) {
+  const el = document.getElementById('docs-content');
+  proposals = proposals || [];
+
+  const inbox     = resources.filter(r => r.status === 'inbox');
+  const reading   = resources.filter(r => r.status === 'reading');
+  const processed = resources.filter(r => r.status === 'processed' || r.status === 'archived');
+
+  let html = '';
+
+  // ── Proposals from PRIME ──
+  if (proposals.length) {
+    html += `
+    <div class="prime-header-banner">
+      <span style="font-size:14px;flex-shrink:0;">◎</span>
+      <span><strong>PRIME found ${proposals.length} gap${proposals.length>1?'s':''}</strong> — concepts and todos with no source material linked yet.</span>
+    </div>
+    <div class="docs-section">
+      <div class="docs-section-header">
+        <span class="docs-section-label">Suggested by PRIME OS</span>
+        <span class="docs-count-badge amber">${proposals.length} new</span>
+      </div>
+      ${proposals.map(renderProposalCard).join('')}
+    </div>`;
   }
-  document.getElementById('docs-content').innerHTML = resources.map(r => {
-    const icon    = TYPE_ICON[r.type] || 'FILE';
-    const hasLink = r.source_url;
-    const tag     = hasLink ? `a href="${r.source_url}" target="_blank" rel="noopener"` : 'div';
-    const closeTag= hasLink ? 'a' : 'div';
-    return `
-    <${tag} class="doc-card${hasLink ? ' doc-card-link' : ''}" style="${hasLink ? 'cursor:pointer;text-decoration:none;' : ''}">
-      <div class="doc-icon">${icon}</div>
-      <div class="doc-name">${r.title}</div>
-      <div class="doc-meta" style="color:var(--text-dim);font-size:11px">${r.description || r.type}</div>
-      ${hasLink ? `<div style="font-size:10px;color:var(--cyan);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.source_url}</div>` : ''}
-    </${closeTag}>`;
-  }).join('');
+
+  // ── Inbox ──
+  if (inbox.length || reading.length) {
+    const inboxCount = inbox.length + reading.length;
+    html += `
+    <div class="docs-section">
+      <div class="docs-section-header">
+        <span class="docs-section-label">Inbox</span>
+        ${inboxCount ? `<span class="docs-count-badge">${inboxCount}</span>` : ''}
+      </div>
+      ${[...reading, ...inbox].map(renderDocRow).join('')}
+    </div>`;
+  }
+
+  // ── Processed ──
+  if (processed.length) {
+    html += `
+    <div class="docs-section">
+      <div class="docs-section-header">
+        <span class="docs-section-label">Processed</span>
+        <span class="docs-count-badge green">${processed.length}</span>
+      </div>
+      ${processed.map(renderDocRow).join('')}
+    </div>`;
+  }
+
+  if (!html) {
+    html = '<div style="color:var(--text-dim);font-size:13px;padding:16px 0">No resources yet — add one above or click "Analyze gaps".</div>';
+  }
+
+  el.innerHTML = html;
+}
+
+async function setResourceStatus(resourceId, newStatus) {
+  try {
+    await API.patch(`/api/resources/${resourceId}`, { status: newStatus });
+    // Re-render just this row optimistically
+    const row = document.getElementById(`doc-row-${resourceId}`);
+    if (row && curProject) {
+      const resources = await API.get(`/api/resources?project_id=${curProject.project.id}`);
+      const proposals = await API.get(`/api/proposals?project_id=${curProject.project.id}&status=pending`);
+      renderDocs(resources, proposals);
+    }
+  } catch(e) { console.error('setResourceStatus:', e); }
+}
+
+async function acceptProposal(proposalId) {
+  try {
+    await API.post(`/api/proposals/${proposalId}/accept`, {});
+    if (curProject) {
+      const [resources, proposals] = await Promise.all([
+        API.get(`/api/resources?project_id=${curProject.project.id}`),
+        API.get(`/api/proposals?project_id=${curProject.project.id}&status=pending`),
+      ]);
+      renderDocs(resources, proposals);
+    }
+  } catch(e) { console.error('acceptProposal:', e); }
+}
+
+async function dismissProposal(proposalId) {
+  try {
+    await fetch(`/api/proposals/${proposalId}`, { method: 'DELETE' });
+    document.getElementById(`proposal-${proposalId}`)?.remove();
+  } catch(e) { console.error('dismissProposal:', e); }
+}
+
+async function analyzeProject() {
+  if (!curProject) return;
+  const btn = document.getElementById('analyze-btn');
+  btn.disabled = true;
+  btn.textContent = 'Analyzing…';
+  try {
+    await API.post(`/api/proposals/analyze/${curProject.project.id}`, {});
+    // Poll for results — analysis runs in background
+    await new Promise(r => setTimeout(r, 4000));
+    const [resources, proposals] = await Promise.all([
+      API.get(`/api/resources?project_id=${curProject.project.id}`),
+      API.get(`/api/proposals?project_id=${curProject.project.id}&status=pending`),
+    ]);
+    renderDocs(resources, proposals);
+  } catch(e) {
+    console.error('analyzeProject:', e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Analyze gaps';
+  }
 }
 
 function renderConcepts(concepts) {
