@@ -11,6 +11,9 @@ services:
     volumes:
       # Persists all PRIME data (projects, knowledge, runs) on the host
       - ${PRIME_DATA_DIR:-~/PRIME}:/data
+      # Mount source so changes to code and frontend are picked up without rebuilding
+      - ./backend:/app/backend
+      - ./prime-os.html:/app/prime-os.html
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:7474/api/health')"]
