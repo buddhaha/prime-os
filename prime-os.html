@@ -443,6 +443,8 @@
     cursor: pointer; transition: all 0.2s; text-align: center;
   }
   .doc-card:hover { border-color: var(--cyan-dim); transform: translateY(-2px); }
+  .doc-card-link { cursor: pointer; }
+  .doc-card-link:hover { border-color: var(--cyan); }
   .doc-icon { font-size: 30px; margin-bottom: 9px; }
   .doc-name { font-size: 12px; font-weight: 500; margin-bottom: 4px; }
   .doc-meta { font-size: 10px; color: var(--text-dim); }
@@ -1333,7 +1335,7 @@ async function openProjectById(id) {
     renderConcepts(detail.concepts || []);
 
     // Resources → docs
-    renderDocs(resources.map(r => ({ name: r.title, icon: TYPE_ICON[r.type] || '📄', meta: r.description || r.type })));
+    renderDocs(resources);
 
   } catch(e) {
     console.error('openProjectById:', e);
@@ -1390,13 +1392,25 @@ function renderTodos(sections) {
     </div>`).join('');
 }
 
-function renderDocs(docs) {
-  document.getElementById('docs-content').innerHTML = docs.map(d => `
-    <div class="doc-card">
-      <div class="doc-icon">${d.icon}</div>
-      <div class="doc-name">${d.name}</div>
-      <div class="doc-meta">${d.meta}</div>
-    </div>`).join('');
+function renderDocs(resources) {
+  if (!resources.length) {
+    document.getElementById('docs-content').innerHTML =
+      '<div style="color:var(--text-dim);font-size:13px;padding:16px 0">No resources yet — add one above.</div>';
+    return;
+  }
+  document.getElementById('docs-content').innerHTML = resources.map(r => {
+    const icon    = TYPE_ICON[r.type] || '📄';
+    const hasLink = r.source_url;
+    const tag     = hasLink ? `a href="${r.source_url}" target="_blank" rel="noopener"` : 'div';
+    const closeTag= hasLink ? 'a' : 'div';
+    return `
+    <${tag} class="doc-card${hasLink ? ' doc-card-link' : ''}" style="${hasLink ? 'cursor:pointer;text-decoration:none;' : ''}">
+      <div class="doc-icon">${icon}</div>
+      <div class="doc-name">${r.title}</div>
+      <div class="doc-meta" style="color:var(--text-dim);font-size:11px">${r.description || r.type}</div>
+      ${hasLink ? `<div style="font-size:10px;color:var(--cyan);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.source_url}</div>` : ''}
+    </${closeTag}>`;
+  }).join('');
 }
 
 function renderConcepts(concepts) {
@@ -1941,6 +1955,24 @@ async function saveProjModal() {
 
 // ── Resource modal ──────────────────────────────
 
+function onResTypeChange(type) {
+  const urlGroup = document.getElementById('res-url-group');
+  const urlLabel = document.getElementById('res-url-label');
+  const urlInput = document.getElementById('res-modal-url');
+  if (type === 'note') {
+    urlGroup.style.display = 'none';
+  } else {
+    urlGroup.style.display = '';
+    if (type === 'pdf') {
+      urlLabel.innerHTML = 'File path or URL <small style="color:var(--text-dim)">(optional)</small>';
+      urlInput.placeholder = '/path/to/file.pdf  or  https://…';
+    } else {
+      urlLabel.innerHTML = 'URL <small style="color:var(--text-dim)">(optional)</small>';
+      urlInput.placeholder = 'https://…';
+    }
+  }
+}
+
 function openResourceModal() {
   if (!curProject) return;
   document.getElementById('res-modal-title-input').value = '';
@@ -1950,6 +1982,7 @@ function openResourceModal() {
   document.getElementById('res-modal-err').textContent   = '';
   document.getElementById('res-modal-save').disabled     = false;
   document.getElementById('res-modal-save').textContent  = 'Save';
+  onResTypeChange('article');
   document.getElementById('res-modal').classList.add('open');
   setTimeout(() => document.getElementById('res-modal-title-input').focus(), 60);
 }
@@ -2076,7 +2109,7 @@ document.addEventListener('keydown', e => {
     <div class="form-row">
       <div class="form-group" style="flex:1">
         <label class="form-label">Type</label>
-        <select class="form-select" id="res-modal-type">
+        <select class="form-select" id="res-modal-type" onchange="onResTypeChange(this.value)">
           <option value="article">Article</option>
           <option value="note">Note</option>
           <option value="pdf">PDF</option>
@@ -2087,8 +2120,8 @@ document.addEventListener('keydown', e => {
       </div>
     </div>
 
-    <div class="form-group">
-      <label class="form-label">URL <small style="color:var(--text-dim)">(optional)</small></label>
+    <div class="form-group" id="res-url-group">
+      <label class="form-label" id="res-url-label">URL <small style="color:var(--text-dim)">(optional)</small></label>
       <input class="form-input" id="res-modal-url" placeholder="https://…">
     </div>
 
