@@ -171,7 +171,7 @@ class AgentRuntime:
         # Lazy imports to avoid circular dependency
         self._store = file_store
         self._graph = graph_engine
-        self._client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+        self._client: anthropic.AsyncAnthropic | None = None  # lazy — only created when a run starts
 
         # run_id → asyncio.Task
         self._active: dict[str, asyncio.Task] = {}
@@ -184,6 +184,19 @@ class AgentRuntime:
 
     def set_broadcaster(self, fn: Callable[[AgentEvent], None]) -> None:
         self._broadcast = fn
+
+    @property
+    def _anthropic(self) -> anthropic.AsyncAnthropic:
+        """Lazy Anthropic client — created on first use so the server starts without a key."""
+        if self._client is None:
+            key = settings.anthropic_api_key
+            if not key:
+                raise RuntimeError(
+                    "ANTHROPIC_API_KEY is not set. "
+                    "Agent runs require an API key — set it in .env or the environment."
+                )
+            self._client = anthropic.AsyncAnthropic(api_key=key)
+        return self._client
 
     # ─────────────────────────────────────────
     # Public API
@@ -265,7 +278,7 @@ class AgentRuntime:
                     {"turns": turns, "progress": min(95, turns * (90 // agent.max_turns))}
                 )
 
-                response = await self._client.messages.create(
+                response = await self._anthropic.messages.create(
                     model=agent.model,
                     max_tokens=agent.max_tokens,
                     system=system,

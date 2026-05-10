@@ -4,9 +4,9 @@ services:
     ports:
       - "7474:7474"
     environment:
-      # Copy your key from .env or pass it inline:
-      #   ANTHROPIC_API_KEY=sk-ant-... docker compose up
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      # Optional — only needed to run agents. Projects, graph, and resources work without it.
+      # Set in .env or inline: ANTHROPIC_API_KEY=sk-ant-... docker compose up
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       PRIME_WORKSPACE: /data
     volumes:
       # Persists all PRIME data (projects, knowledge, runs) on the host
