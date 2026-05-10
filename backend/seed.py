@@ -27,10 +27,17 @@ from backend.models.agent import AgentCreate, AgentRole, AgentTool
 def seed():
     workspace = settings.workspace_path
 
-    # Wipe and recreate so re-runs are always clean
+    # Wipe contents so re-runs are always clean.
+    # We clear children rather than the directory itself because the
+    # workspace root may be a Docker bind-mount point (can't be deleted).
     if workspace.exists():
-        shutil.rmtree(workspace)
-    workspace.mkdir(parents=True)
+        for child in workspace.iterdir():
+            if child.is_dir():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
+    else:
+        workspace.mkdir(parents=True)
 
     store = FileStore(workspace)
     print(f"Seeding workspace at: {workspace}")
