@@ -213,9 +213,9 @@ class DBStore:
             id=_new_id(),
             project_id=data.project_id,
             title=data.title,
-            date=data.date,
+            date=date.today(),
             type=data.type.value,
-            status=data.status.value,
+            status="accepted",          # DecisionCreate has no status field — default accepted
             context=data.context,
             body=data.body,
             consequences=data.consequences,

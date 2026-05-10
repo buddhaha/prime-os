@@ -2,9 +2,7 @@
 FastAPI dependency injectors.
 """
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from .database import AsyncSessionLocal, get_db
+from .database import AsyncSessionLocal
 from .services.graph_engine  import GraphEngine
 from .services.agent_runtime import AgentRuntime
 from .services.db_store      import DBStore
@@ -22,7 +20,7 @@ def init_dependencies(graph: GraphEngine, runtime: AgentRuntime) -> None:
 
 # ── Per-request DB session + store ─────────────────────────────────────────
 
-async def get_store(session: AsyncSession = None) -> DBStore:
+async def get_store() -> DBStore:
     """
     Yields a DBStore backed by a fresh async session.
     Use as a FastAPI Depends() — the session is committed and closed automatically.
