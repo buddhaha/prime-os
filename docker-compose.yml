@@ -42,6 +42,20 @@ services:
       retries: 3
       start_period: 15s
 
+  # Run tests: docker-compose run --rm test
+  test:
+    build: .
+    command: pytest -v --tb=short
+    environment:
+      DATABASE_URL: postgresql+asyncpg://prime:prime_dev@db:5432/prime_test
+    volumes:
+      - ./backend:/app/backend
+      - ./tests:/app/tests
+      - ./pytest.ini:/app/pytest.ini
+    depends_on:
+      db:
+        condition: service_healthy
+
   # Manual seed: docker-compose run seed
   seed:
     build: .
