@@ -1,24 +1,22 @@
-"""Knowledge graph endpoints."""
+"""Knowledge graph, resources, and proposals endpoints."""
 
-import asyncio
-
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 
 from ..models.graph import GraphData, GraphNode
-from ..models.resource import Resource, ResourceCreate, ResourceUpdate, Edge, EdgeCreate
-from ..services.file_store import FileStore
+from ..models.resource import Resource, ResourceCreate, ResourceUpdate, Edge, EdgeCreate, Proposal
+from ..services.db_store import DBStore
 from ..services.graph_engine import GraphEngine
 from ..dependencies import get_store, get_graph
+from ..config import settings
 
 router = APIRouter(prefix="/api", tags=["graph"])
 
 
-# ── Full graph ─────────────────────────────────
+# ── Full graph ─────────────────────────────────────────────────────────────────
 
 @router.get("/graph", response_model=GraphData)
-async def get_graph(graph: GraphEngine = Depends(get_graph)):
-    """Return the full knowledge graph for the frontend visualisation."""
-    return graph.get_graph()
+async def read_graph(graph_engine: GraphEngine = Depends(get_graph)):
+    return graph_engine.get_graph()
 
 
 @router.get("/graph/stats")
@@ -32,7 +30,6 @@ async def get_node_neighborhood(
     depth: int = Query(1, ge=1, le=3),
     graph: GraphEngine = Depends(get_graph),
 ):
-    """Return the subgraph within `depth` hops of a node."""
     return graph.neighbors(node_id, depth=depth)
 
 
@@ -44,40 +41,23 @@ async def search_graph(
     return graph.search_nodes(q)
 
 
-# ── Resources ──────────────────────────────────
+# ── Resources ──────────────────────────────────────────────────────────────────
 
 @router.get("/resources", response_model=list[Resource])
 async def list_resources(
-    type: str | None = None,
     project_id: str | None = None,
-    store: FileStore = Depends(get_store),
+    store: DBStore = Depends(get_store),
 ):
-    return await asyncio.to_thread(store.list_resources, type, project_id)
-
-
-@router.get("/resources/{resource_id}", response_model=Resource)
-async def get_resource(resource_id: str, store: FileStore = Depends(get_store)):
-    r = await asyncio.to_thread(store.get_resource, resource_id)
-    if not r:
-        raise HTTPException(status_code=404, detail="Resource not found")
-    return r
-
-
-@router.get("/resources/{resource_id}/content")
-async def get_resource_content(resource_id: str, store: FileStore = Depends(get_store)):
-    content = await asyncio.to_thread(store.read_resource_content, resource_id)
-    if content is None:
-        raise HTTPException(status_code=404, detail="No content for this resource")
-    return {"content": content}
+    return await store.list_resources(project_id=project_id)
 
 
 @router.post("/resources", response_model=Resource, status_code=201)
 async def create_resource(
     data: ResourceCreate,
-    store: FileStore  = Depends(get_store),
+    store: DBStore     = Depends(get_store),
     graph: GraphEngine = Depends(get_graph),
 ):
-    resource = await asyncio.to_thread(store.create_resource, data)
+    resource = await store.create_resource(data)
     graph.add_resource(resource)
     return resource
 
@@ -86,37 +66,88 @@ async def create_resource(
 async def update_resource(
     resource_id: str,
     data: ResourceUpdate,
-    store: FileStore = Depends(get_store),
+    store: DBStore = Depends(get_store),
 ):
-    r = await asyncio.to_thread(store.update_resource, resource_id, data)
+    r = await store.update_resource(resource_id, data)
     if not r:
         raise HTTPException(status_code=404, detail="Resource not found")
     return r
 
 
-# ── Edges ──────────────────────────────────────
+# ── Edges ──────────────────────────────────────────────────────────────────────
 
 @router.get("/graph/edges", response_model=list[Edge])
-async def list_edges(store: FileStore = Depends(get_store)):
-    return await asyncio.to_thread(store.list_edges)
+async def list_edges(store: DBStore = Depends(get_store)):
+    return await store.list_edges()
 
 
 @router.post("/graph/edges", response_model=Edge, status_code=201)
 async def create_edge(
     data: EdgeCreate,
-    store: FileStore  = Depends(get_store),
+    store: DBStore     = Depends(get_store),
     graph: GraphEngine = Depends(get_graph),
 ):
-    edge = await asyncio.to_thread(store.create_edge, data)
+    edge = await store.create_edge(data)
     graph.add_edge(edge)
     return edge
 
 
-@router.delete("/graph/edges/{edge_id}", status_code=204)
-async def delete_edge(
-    edge_id: str,
-    store: FileStore  = Depends(get_store),
+# ── Proposals ──────────────────────────────────────────────────────────────────
+
+@router.get("/proposals", response_model=list[Proposal])
+async def list_proposals(
+    project_id: str | None = None,
+    status: str | None = "pending",
+    store: DBStore = Depends(get_store),
 ):
-    ok = await asyncio.to_thread(store.delete_edge, edge_id)
+    return await store.list_proposals(project_id=project_id, status=status)
+
+
+@router.post("/proposals/analyze/{project_id}", status_code=202)
+async def analyze_project(
+    project_id: str,
+    background_tasks: BackgroundTasks,
+    store: DBStore = Depends(get_store),
+):
+    """
+    Trigger gap analysis for a project. Runs proposal generation in the background.
+    Returns immediately with 202 Accepted — poll GET /api/proposals?project_id=... for results.
+    """
+    if not settings.anthropic_api_key:
+        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY not configured")
+
+    from ..services.proposal_engine import run_analysis
+    from ..database import AsyncSessionLocal
+    from ..services.db_store import DBStore as Store
+
+    async def _run():
+        async with AsyncSessionLocal() as session:
+            async with session.begin():
+                bg_store = Store(session)
+                await run_analysis(bg_store, project_id, settings.anthropic_api_key)
+
+    background_tasks.add_task(_run)
+    return {"status": "analysis started", "project_id": project_id}
+
+
+@router.post("/proposals/{proposal_id}/accept", response_model=Resource)
+async def accept_proposal(
+    proposal_id: str,
+    store: DBStore     = Depends(get_store),
+    graph: GraphEngine = Depends(get_graph),
+):
+    resource = await store.accept_proposal(proposal_id)
+    if not resource:
+        raise HTTPException(status_code=404, detail="Proposal not found or already actioned")
+    graph.add_resource(resource)
+    return resource
+
+
+@router.delete("/proposals/{proposal_id}", status_code=204)
+async def dismiss_proposal(
+    proposal_id: str,
+    store: DBStore = Depends(get_store),
+):
+    ok = await store.dismiss_proposal(proposal_id)
     if not ok:
-        raise HTTPException(status_code=404, detail="Edge not found")
+        raise HTTPException(status_code=404, detail="Proposal not found")
