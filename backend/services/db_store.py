@@ -13,7 +13,7 @@ from sqlalchemy.orm import selectinload
 
 from ..database import (
     ProjectRow, DecisionRow, TodoRow, ConceptRow, ResourceRow, EdgeRow,
-    ProposalRow, resource_projects,
+    ProposalRow, AgentRunRow, AgentLogRow, resource_projects,
 )
 from ..models.project import (
     Project, ProjectCreate, ProjectDetail,
@@ -26,6 +26,7 @@ from ..models.resource import (
     Edge, EdgeCreate,
     Proposal, ProposalCreate, ProposalStatus,
 )
+from ..models.agent import AgentRun, RunStatus, LogEntry, LogLevel
 
 
 def _new_id() -> str:
@@ -130,6 +131,23 @@ def _proposal(row: ProposalRow) -> Proposal:
         gap_label=row.gap_label or "",
         status=row.status or "pending",
         created=row.created,
+    )
+
+
+def _run(row: AgentRunRow) -> AgentRun:
+    return AgentRun(
+        id=row.id,
+        agent_id=row.agent_id,
+        agent_name=row.agent_name or "",
+        task_id="",
+        task=row.task,
+        project_id=row.project_id,
+        status=RunStatus(row.status),
+        progress=row.progress or 0,
+        turns=row.turns or 0,
+        started=row.started,
+        finished=row.finished,
+        error_msg=row.error_msg or "",
     )
 
 
@@ -458,3 +476,79 @@ class DBStore:
         row.status = "dismissed"
         await self.session.flush()
         return True
+
+    # ── Agent runs ─────────────────────────────
+
+    async def create_run(self, run: AgentRun) -> AgentRun:
+        row = AgentRunRow(
+            id=run.id,
+            agent_id=run.agent_id,
+            agent_name=getattr(run, "agent_name", ""),
+            task=run.task,
+            project_id=run.project_id,
+            status=run.status.value,
+            progress=run.progress,
+            turns=run.turns,
+            started=run.started,
+            finished=run.finished,
+            error_msg=run.error_msg,
+        )
+        self.session.add(row)
+        await self.session.flush()
+        return run
+
+    async def update_run(self, run_id: str, updates: dict) -> None:
+        row = (await self.session.execute(
+            select(AgentRunRow).where(AgentRunRow.id == run_id)
+        )).scalar_one_or_none()
+        if not row:
+            return
+        for key, val in updates.items():
+            setattr(row, key, val.value if isinstance(val, RunStatus) else val)
+        await self.session.flush()
+
+    async def get_run(self, run_id: str) -> AgentRun | None:
+        row = (await self.session.execute(
+            select(AgentRunRow).where(AgentRunRow.id == run_id)
+        )).scalar_one_or_none()
+        return _run(row) if row else None
+
+    async def list_runs(self, agent_id: str | None = None, status: str | None = None) -> list[AgentRun]:
+        q = select(AgentRunRow).order_by(AgentRunRow.started.desc())
+        if agent_id:
+            q = q.where(AgentRunRow.agent_id == agent_id)
+        if status:
+            q = q.where(AgentRunRow.status == status)
+        rows = (await self.session.execute(q)).scalars().all()
+        return [_run(r) for r in rows]
+
+    async def append_log(self, run_id: str, entry: LogEntry) -> None:
+        row = AgentLogRow(
+            id=_new_id(),
+            run_id=run_id,
+            ts=entry.ts,
+            level=entry.level.value,
+            message=entry.message,
+        )
+        self.session.add(row)
+        await self.session.flush()
+
+    async def get_run_logs(self, run_id: str) -> list[LogEntry]:
+        rows = (await self.session.execute(
+            select(AgentLogRow).where(AgentLogRow.run_id == run_id).order_by(AgentLogRow.ts)
+        )).scalars().all()
+        return [LogEntry(ts=r.ts, level=LogLevel(r.level), message=r.message) for r in rows]
+
+    # ── Resource helpers for agents ─────────────
+
+    async def get_resource(self, resource_id: str) -> Resource | None:
+        row = (await self.session.execute(
+            select(ResourceRow).where(ResourceRow.id == resource_id)
+        )).scalar_one_or_none()
+        return _resource(row) if row else None
+
+    async def read_resource_content(self, resource_id: str) -> str | None:
+        row = (await self.session.execute(
+            select(ResourceRow).where(ResourceRow.id == resource_id)
+        )).scalar_one_or_none()
+        return row.content if row and row.content else None

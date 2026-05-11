@@ -21,7 +21,7 @@ from .services.graph_engine  import GraphEngine
 from .services.agent_runtime import AgentRuntime
 from .services.db_store      import DBStore
 from .dependencies           import init_dependencies, require_api_key
-from .api                    import projects, graph, agents
+from .api                    import projects, graph, agents as agents_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 log = logging.getLogger("prime")
@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI):
 
     # 1. Initialise graph + runtime singletons
     graph_engine = GraphEngine()
-    runtime      = AgentRuntime(None, graph_engine)
+    runtime      = AgentRuntime(AsyncSessionLocal, graph_engine)
     init_dependencies(graph_engine, runtime)
 
     # 2. Auto-seed if DB is empty
@@ -98,9 +98,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(projects.router, dependencies=[Depends(require_api_key)])
-app.include_router(graph.router,    dependencies=[Depends(require_api_key)])
-app.include_router(agents.router,   dependencies=[Depends(require_api_key)])
+app.include_router(projects.router,      dependencies=[Depends(require_api_key)])
+app.include_router(graph.router,         dependencies=[Depends(require_api_key)])
+app.include_router(agents_router.router, dependencies=[Depends(require_api_key)])
 
 
 @app.get("/api/health")
