@@ -5,31 +5,33 @@ Design:
   - Each agent run is an asyncio Task.
   - Agents communicate with Claude using the tool-use API.
   - Tools are Python functions exposed as JSON schemas to Claude.
-  - Results are streamed to JSONL logs and broadcast over WebSocket.
-  - The runtime holds a registry of active runs so they can be paused/stopped.
+  - Results are streamed to the DB log and broadcast over WebSocket.
+  - The runtime holds an in-memory registry of agents and active runs.
 
-Tool inventory (what agents can do):
-  read_resource(id)              — read a resource's content from the workspace
-  write_resource(title, type, content, project_ids)  — save a new resource
+Tool inventory:
+  list_projects()
+  read_project(project_id)
+  read_resource(resource_id)
+  write_resource(title, type, content, ...)
   create_decision(project_id, title, type, context, body, alternatives)
   create_note(title, content, project_ids, tags)
   link_resources(from_id, to_id, relation)
-  list_projects()
-  read_project(project_id)       — get project details + decisions + todos
-  web_search(query)              — lightweight web search via DuckDuckGo
+  web_search(query)
 """
 
 import asyncio
 import json
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, Callable, AsyncIterator
+from typing import Any, Callable
 
 import anthropic
 import httpx
 
 from ..models.agent import (
     Agent, AgentRun, AgentTask, AgentEvent,
+    AgentRole, ROLE_PROMPTS,
     LogEntry, LogLevel, RunStatus, AgentTool,
 )
 from ..models.project import DecisionCreate, DecisionType, Alternative
@@ -94,8 +96,8 @@ TOOL_SCHEMAS: list[dict] = [
                 "project_id":   {"type": "string"},
                 "title":        {"type": "string"},
                 "type":         {"type": "string", "enum": ["adr", "decision", "milestone", "note"]},
-                "context":      {"type": "string", "description": "Why this decision was needed."},
-                "body":         {"type": "string", "description": "What was decided."},
+                "context":      {"type": "string"},
+                "body":         {"type": "string"},
                 "consequences": {"type": "string"},
                 "alternatives": {
                     "type": "array",
@@ -149,12 +151,21 @@ TOOL_SCHEMAS: list[dict] = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "query": {"type": "string"},
+                "query":       {"type": "string"},
                 "max_results": {"type": "integer", "default": 5},
             },
             "required": ["query"],
         },
     },
+]
+
+# Default agents available without explicit registration
+_DEFAULT_AGENTS: list[Agent] = [
+    Agent(id="researcher", name="Researcher", role=AgentRole.research,  emoji="🔍"),
+    Agent(id="writer",     name="Writer",     role=AgentRole.writer,    emoji="✍️"),
+    Agent(id="analyst",    name="Analyst",    role=AgentRole.analyst,   emoji="📊"),
+    Agent(id="monitor",    name="Monitor",    role=AgentRole.monitor,   emoji="👁️"),
+    Agent(id="coder",      name="Coder",      role=AgentRole.coder,     emoji="💻"),
 ]
 
 
@@ -167,55 +178,73 @@ class AgentRuntime:
     Manages concurrent agent execution. Inject via FastAPI dependency.
     """
 
-    def __init__(self, file_store, graph_engine) -> None:
-        # Lazy imports to avoid circular dependency
-        self._store = file_store
+    def __init__(self, session_factory, graph_engine) -> None:
+        self._session_factory = session_factory
         self._graph = graph_engine
-        self._client: anthropic.AsyncAnthropic | None = None  # lazy — only created when a run starts
+        self._client: anthropic.AsyncAnthropic | None = None
+
+        # Agent registry (in-memory; default agents pre-loaded)
+        self._agents: dict[str, Agent] = {a.id: a for a in _DEFAULT_AGENTS}
 
         # run_id → asyncio.Task
         self._active: dict[str, asyncio.Task] = {}
-
         # run_id → stop event
         self._stop_events: dict[str, asyncio.Event] = {}
 
         # WebSocket broadcast callback — set by the WS router
         self._broadcast: Callable[[AgentEvent], None] | None = None
 
+    # ── Agent registry ──────────────────────────
+
+    def list_agents(self) -> list[Agent]:
+        return list(self._agents.values())
+
+    def get_agent(self, agent_id: str) -> Agent | None:
+        return self._agents.get(agent_id)
+
+    def register_agent(self, agent: Agent) -> Agent:
+        self._agents[agent.id] = agent
+        return agent
+
     def set_broadcaster(self, fn: Callable[[AgentEvent], None]) -> None:
         self._broadcast = fn
 
     @property
     def _anthropic(self) -> anthropic.AsyncAnthropic:
-        """Lazy Anthropic client — created on first use so the server starts without a key."""
         if self._client is None:
             key = settings.anthropic_api_key
             if not key:
                 raise RuntimeError(
                     "ANTHROPIC_API_KEY is not set. "
-                    "Agent runs require an API key — set it in .env or the environment."
+                    "Agent runs require an API key — set it in .env."
                 )
             self._client = anthropic.AsyncAnthropic(api_key=key)
         return self._client
 
-    # ─────────────────────────────────────────
-    # Public API
-    # ─────────────────────────────────────────
+    @asynccontextmanager
+    async def _store(self):
+        """Short-lived DB session for a single operation or transaction."""
+        from .db_store import DBStore
+        async with self._session_factory() as session:
+            async with session.begin():
+                yield DBStore(session)
+
+    # ── Public API ──────────────────────────────
 
     async def start_run(self, agent: Agent, task: AgentTask) -> AgentRun:
-        """Create a run record and launch the execution coroutine."""
         run_id = str(uuid.uuid4())[:12]
         run = AgentRun(
             id=run_id,
             agent_id=agent.id,
+            agent_name=agent.name,
             task_id=task.id,
             task=task.task,
             project_id=task.project_id,
             status=RunStatus.running,
             started=datetime.utcnow(),
         )
-        await asyncio.to_thread(self._store.create_run, run)
-        await asyncio.to_thread(self._store.dequeue_task, task.id)
+        async with self._store() as store:
+            await store.create_run(run)
 
         stop_event = asyncio.Event()
         self._stop_events[run_id] = stop_event
@@ -235,13 +264,9 @@ class AgentRuntime:
         return False
 
     async def pause_run(self, run_id: str) -> bool:
-        # Pause is implemented as stop for now; a proper pause would need
-        # checkpointing the conversation history to disk.
         return await self.stop_run(run_id)
 
-    # ─────────────────────────────────────────
-    # Execution loop
-    # ─────────────────────────────────────────
+    # ── Execution loop ──────────────────────────
 
     async def _execute(
         self,
@@ -250,13 +275,14 @@ class AgentRuntime:
         run: AgentRun,
         stop: asyncio.Event,
     ) -> None:
+        import logging
+        log = logging.getLogger("prime.agent")
+
         await self._log(run.id, LogLevel.info, f"Starting task: {task.task}")
 
-        # Filter tool schemas to only those the agent is permitted to use
         allowed = {t.value for t in agent.tools} if agent.tools else {s["name"] for s in TOOL_SCHEMAS}
         tools = [s for s in TOOL_SCHEMAS if s["name"] in allowed]
 
-        # Build the initial user message
         user_msg = task.task
         if task.context:
             user_msg = f"{task.task}\n\nContext:\n{task.context}"
@@ -273,10 +299,11 @@ class AgentRuntime:
             while turns < agent.max_turns and not stop.is_set():
                 turns += 1
                 await self._log(run.id, LogLevel.info, f"Turn {turns}/{agent.max_turns}")
-                await asyncio.to_thread(
-                    self._store.update_run, run.id,
-                    {"turns": turns, "progress": min(95, turns * (90 // agent.max_turns))}
-                )
+                async with self._store() as store:
+                    await store.update_run(run.id, {
+                        "turns": turns,
+                        "progress": min(95, turns * (90 // agent.max_turns)),
+                    })
 
                 response = await self._anthropic.messages.create(
                     model=agent.model,
@@ -286,7 +313,6 @@ class AgentRuntime:
                     messages=messages,
                 )
 
-                # Collect text from this turn
                 turn_text = ""
                 tool_calls = []
 
@@ -298,17 +324,15 @@ class AgentRuntime:
                         tool_calls.append(block)
 
                 if turn_text:
-                    await self._log(run.id, LogLevel.info, turn_text[:200] + ("…" if len(turn_text) > 200 else ""))
+                    await self._log(run.id, LogLevel.info,
+                                    turn_text[:200] + ("…" if len(turn_text) > 200 else ""))
 
-                # Append assistant turn to history
                 messages.append({"role": "assistant", "content": response.content})
 
-                # Stop if Claude is done (no tool calls, or end_turn)
                 if response.stop_reason == "end_turn" and not tool_calls:
                     await self._log(run.id, LogLevel.ok, "Agent finished.")
                     break
 
-                # Process tool calls
                 if tool_calls:
                     tool_results = []
                     for call in tool_calls:
@@ -320,56 +344,59 @@ class AgentRuntime:
                         })
                     messages.append({"role": "user", "content": tool_results})
 
-            # Save result
+            # Save final text as a knowledge base note
             if final_text.strip():
-                result_path = await asyncio.to_thread(
-                    self._store.write_run_result, run.id, final_text.strip()
-                )
-                # Also save as a note in the knowledge base
-                rc = ResourceCreate(
-                    type=ResourceType.note,
-                    title=f"Agent result: {task.task[:60]}",
-                    description=f"Generated by {agent.name} agent, run {run.id}",
-                    project_ids=[task.project_id] if task.project_id else [],
-                    tags=["agent-output", agent.role.value],
-                    content=final_text.strip(),
-                )
-                resource = await asyncio.to_thread(self._store.create_resource, rc)
-                self._graph.add_resource(resource)
+                async with self._store() as store:
+                    rc = ResourceCreate(
+                        type=ResourceType.note,
+                        title=f"Agent result: {task.task[:60]}",
+                        description=f"Generated by {agent.name} agent, run {run.id}",
+                        project_ids=[task.project_id] if task.project_id else [],
+                        tags=["agent-output", agent.role.value],
+                        content=final_text.strip(),
+                    )
+                    resource = await store.create_resource(rc)
+                    self._graph.add_resource(resource)
 
-            await asyncio.to_thread(
-                self._store.update_run, run.id,
-                {"status": RunStatus.completed.value, "progress": 100, "finished": str(datetime.utcnow())}
-            )
+            async with self._store() as store:
+                await store.update_run(run.id, {
+                    "status": RunStatus.completed,
+                    "progress": 100,
+                    "finished": datetime.utcnow(),
+                })
             await self._log(run.id, LogLevel.ok, "Run completed successfully.")
             await self._emit(AgentEvent(event="run_done", run_id=run.id, payload={"progress": 100}))
 
         except asyncio.CancelledError:
-            await asyncio.to_thread(
-                self._store.update_run, run.id,
-                {"status": RunStatus.cancelled.value, "finished": str(datetime.utcnow())}
-            )
+            async with self._store() as store:
+                await store.update_run(run.id, {
+                    "status": RunStatus.cancelled,
+                    "finished": datetime.utcnow(),
+                })
             await self._log(run.id, LogLevel.warn, "Run cancelled.")
+
         except Exception as exc:
             msg = str(exc)
-            await asyncio.to_thread(
-                self._store.update_run, run.id,
-                {"status": RunStatus.error.value, "error_msg": msg, "finished": str(datetime.utcnow())}
-            )
+            log.exception(f"Agent run {run.id} failed")
+            async with self._store() as store:
+                await store.update_run(run.id, {
+                    "status": RunStatus.error,
+                    "error_msg": msg,
+                    "finished": datetime.utcnow(),
+                })
             await self._log(run.id, LogLevel.error, f"Run failed: {msg}")
             await self._emit(AgentEvent(event="run_error", run_id=run.id, payload={"error": msg}))
+
         finally:
             self._stop_events.pop(run.id, None)
 
-    # ─────────────────────────────────────────
-    # Tool dispatcher
-    # ─────────────────────────────────────────
+    # ── Tool dispatcher ─────────────────────────
 
     async def _dispatch_tool(self, run: AgentRun, agent: Agent, name: str, args: dict) -> Any:
         await self._log(run.id, LogLevel.tool, f"→ {name}({json.dumps(args)[:120]})")
         await self._emit(AgentEvent(
             event="tool_call", run_id=run.id,
-            payload={"tool": name, "input": args}
+            payload={"tool": name, "input": args},
         ))
         try:
             result = await self._call_tool(run, agent, name, args)
@@ -380,78 +407,85 @@ class AgentRuntime:
             return {"error": str(e)}
 
     async def _call_tool(self, run: AgentRun, agent: Agent, name: str, args: dict) -> Any:
-        store = self._store
-
         if name == "list_projects":
-            projects = await asyncio.to_thread(store.list_projects)
-            return [{"id": p.id, "name": p.name, "status": p.status, "description": p.description} for p in projects]
+            async with self._store() as store:
+                projects = await store.list_projects()
+            return [{"id": p.id, "name": p.name, "status": p.status,
+                     "description": p.description} for p in projects]
 
         elif name == "read_project":
-            detail = await asyncio.to_thread(store.get_project_detail, args["project_id"])
+            async with self._store() as store:
+                detail = await store.get_project_detail(args["project_id"])
             if not detail:
                 return {"error": "Project not found"}
             return detail.model_dump()
 
         elif name == "read_resource":
-            content = await asyncio.to_thread(store.read_resource_content, args["resource_id"])
-            if content is None:
-                res = await asyncio.to_thread(store.get_resource, args["resource_id"])
-                return {"error": "No content file"} if not res else {"title": res.title, "description": res.description}
+            async with self._store() as store:
+                content = await store.read_resource_content(args["resource_id"])
+                if content is None:
+                    res = await store.get_resource(args["resource_id"])
+                    return ({"error": "No content"} if not res
+                            else {"title": res.title, "description": res.description})
             return {"content": content}
 
         elif name == "write_resource":
-            rc = ResourceCreate(
-                type=ResourceType(args["type"]),
-                title=args["title"],
-                content=args.get("content", ""),
-                description=args.get("description", ""),
-                project_ids=args.get("project_ids") or (
-                    [run.project_id] if run.project_id else []
-                ),
-                tags=args.get("tags", []),
-            )
-            resource = await asyncio.to_thread(store.create_resource, rc)
+            async with self._store() as store:
+                rc = ResourceCreate(
+                    type=ResourceType(args["type"]),
+                    title=args["title"],
+                    content=args.get("content", ""),
+                    description=args.get("description", ""),
+                    project_ids=args.get("project_ids") or (
+                        [run.project_id] if run.project_id else []
+                    ),
+                    tags=args.get("tags", []),
+                )
+                resource = await store.create_resource(rc)
             self._graph.add_resource(resource)
-            return {"id": resource.id, "title": resource.title, "path": resource.path}
+            return {"id": resource.id, "title": resource.title}
 
         elif name == "create_decision":
             alts = [
                 Alternative(title=a["title"], reason=a.get("reason", ""))
                 for a in args.get("alternatives", [])
             ]
-            dc = DecisionCreate(
-                project_id=args["project_id"],
-                title=args["title"],
-                type=DecisionType(args.get("type", "decision")),
-                context=args.get("context", ""),
-                body=args["body"],
-                consequences=args.get("consequences", ""),
-                alternatives=alts,
-                tags=args.get("tags", []),
-            )
-            decision = await asyncio.to_thread(store.create_decision, dc)
+            async with self._store() as store:
+                dc = DecisionCreate(
+                    project_id=args["project_id"],
+                    title=args["title"],
+                    type=DecisionType(args.get("type", "decision")),
+                    context=args.get("context", ""),
+                    body=args["body"],
+                    consequences=args.get("consequences", ""),
+                    alternatives=alts,
+                    tags=args.get("tags", []),
+                )
+                decision = await store.create_decision(dc)
             return {"id": decision.id, "title": decision.title}
 
         elif name == "create_note":
-            rc = ResourceCreate(
-                type=ResourceType.note,
-                title=args["title"],
-                content=args.get("content", ""),
-                project_ids=args.get("project_ids", []),
-                tags=args.get("tags", []),
-            )
-            resource = await asyncio.to_thread(store.create_resource, rc)
+            async with self._store() as store:
+                rc = ResourceCreate(
+                    type=ResourceType.note,
+                    title=args["title"],
+                    content=args.get("content", ""),
+                    project_ids=args.get("project_ids", []),
+                    tags=args.get("tags", []),
+                )
+                resource = await store.create_resource(rc)
             self._graph.add_resource(resource)
             return {"id": resource.id, "title": resource.title}
 
         elif name == "link_resources":
-            ec = EdgeCreate(
-                from_id=args["from_id"],
-                to_id=args["to_id"],
-                relation=RelationType(args["relation"]),
-                note=args.get("note", ""),
-            )
-            edge = await asyncio.to_thread(store.create_edge, ec)
+            async with self._store() as store:
+                ec = EdgeCreate(
+                    from_id=args["from_id"],
+                    to_id=args["to_id"],
+                    relation=RelationType(args["relation"]),
+                    note=args.get("note", ""),
+                )
+                edge = await store.create_edge(ec)
             self._graph.add_edge(edge)
             return {"edge_id": edge.id}
 
@@ -461,10 +495,6 @@ class AgentRuntime:
         return {"error": f"Unknown tool: {name}"}
 
     async def _web_search(self, query: str, max_results: int = 5) -> dict:
-        """
-        Lightweight DuckDuckGo instant-answer search (no API key needed).
-        For a richer result set, swap this for a Serper or Brave Search call.
-        """
         url = "https://api.duckduckgo.com/"
         params = {"q": query, "format": "json", "no_redirect": 1, "no_html": 1}
         async with httpx.AsyncClient(timeout=10) as client:
@@ -474,21 +504,26 @@ class AgentRuntime:
         results = []
         abstract = data.get("AbstractText", "")
         if abstract:
-            results.append({"title": data.get("Heading", query), "snippet": abstract, "url": data.get("AbstractURL", "")})
-
+            results.append({
+                "title": data.get("Heading", query),
+                "snippet": abstract,
+                "url": data.get("AbstractURL", ""),
+            })
         for item in data.get("RelatedTopics", [])[:max_results]:
             if "Text" in item:
-                results.append({"title": item.get("Text", "")[:80], "snippet": item.get("Text", ""), "url": item.get("FirstURL", "")})
-
+                results.append({
+                    "title": item.get("Text", "")[:80],
+                    "snippet": item.get("Text", ""),
+                    "url": item.get("FirstURL", ""),
+                })
         return {"query": query, "results": results[:max_results]}
 
-    # ─────────────────────────────────────────
-    # Helpers
-    # ─────────────────────────────────────────
+    # ── Helpers ─────────────────────────────────
 
     async def _log(self, run_id: str, level: LogLevel, message: str) -> None:
         entry = LogEntry(level=level, message=message)
-        await asyncio.to_thread(self._store.append_log, run_id, entry)
+        async with self._store() as store:
+            await store.append_log(run_id, entry)
         await self._emit(AgentEvent(
             event="log",
             run_id=run_id,

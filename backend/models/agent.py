@@ -150,25 +150,20 @@ class RunStatus(str, Enum):
 
 
 class AgentRun(BaseModel):
-    """
-    Stored as ~/PRIME/agents/runs/{id}/run.json.
-    Log lines appended to log.jsonl; result written to result.md.
-    """
     id:          str
     agent_id:    str
-    task_id:     str
+    agent_name:  str         = ""
+    task_id:     str         = ""
     task:        str
     project_id:  str | None  = None
     status:      RunStatus   = RunStatus.queued
-    progress:    int         = 0    # 0–100 estimate
-    turns:       int         = 0    # how many Claude turns used
+    progress:    int         = 0
+    turns:       int         = 0
     started:     datetime | None = None
     finished:    datetime | None = None
     error_msg:   str         = ""
 
-    # Populated when returning run details (not stored in run.json)
     log:         list["LogEntry"] = Field(default_factory=list)
-    result_path: str | None = None
 
 
 # ─────────────────────────────────────────────

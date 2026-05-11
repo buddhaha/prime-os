@@ -9,7 +9,7 @@ from datetime import date
 from typing import Any
 
 from sqlalchemy import (
-    Column, Date, ForeignKey, String, Text, Boolean,
+    Column, Date, DateTime, ForeignKey, Integer, String, Text,
     Table, MetaData, UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
@@ -189,3 +189,34 @@ class EdgeRow(Base):
     __table_args__ = (
         UniqueConstraint("from_id", "to_id", "relation", name="uq_edge"),
     )
+
+
+class AgentRunRow(Base):
+    __tablename__ = "agent_runs"
+
+    id         = Column(String,  primary_key=True, default=new_id)
+    agent_id   = Column(String,  nullable=False)
+    agent_name = Column(String,  nullable=False, default="")
+    task       = Column(Text,    nullable=False)
+    project_id = Column(String,  nullable=True)
+    status     = Column(String,  nullable=False, default="running")
+    progress   = Column(Integer, nullable=False, default=0)
+    turns      = Column(Integer, nullable=False, default=0)
+    started    = Column(DateTime, nullable=True)
+    finished   = Column(DateTime, nullable=True)
+    error_msg  = Column(Text,    nullable=False, default="")
+
+    logs = relationship("AgentLogRow", back_populates="run", cascade="all, delete-orphan",
+                        order_by="AgentLogRow.ts")
+
+
+class AgentLogRow(Base):
+    __tablename__ = "agent_logs"
+
+    id      = Column(String,   primary_key=True, default=new_id)
+    run_id  = Column(String,   ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False)
+    ts      = Column(DateTime, nullable=False)
+    level   = Column(String,   nullable=False, default="info")
+    message = Column(Text,     nullable=False, default="")
+
+    run = relationship("AgentRunRow", back_populates="logs")
