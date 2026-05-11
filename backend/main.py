@@ -38,6 +38,9 @@ def _run_migrations() -> None:
     import pathlib
     ini = pathlib.Path(__file__).parent.parent / "alembic.ini"
     cfg = Config(str(ini))
+    # Explicitly set script_location so %(here)s interpolation in alembic.ini
+    # works correctly when called programmatically (e.g. from within Docker)
+    cfg.set_main_option("script_location", str(ini.parent / "alembic"))
     # Override URL so Alembic uses the same DATABASE_URL as the app
     # Alembic needs a sync driver — swap asyncpg → psycopg2 for the migration run
     sync_url = settings.database_url.replace(
