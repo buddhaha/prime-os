@@ -16,28 +16,37 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # ── Add status + origin columns to resources ──────────────────────────────
-    op.add_column("resources", sa.Column("status", sa.String(), nullable=True, server_default="inbox"))
-    op.add_column("resources", sa.Column("origin", sa.String(), nullable=True, server_default="manual"))
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    existing_tables = set(insp.get_table_names())
+
+    # ── Add status + origin columns to resources (if missing) ─────────────────
+    if "resources" in existing_tables:
+        existing_cols = {c["name"] for c in insp.get_columns("resources")}
+        if "status" not in existing_cols:
+            op.add_column("resources", sa.Column("status", sa.String(), nullable=True, server_default="inbox"))
+        if "origin" not in existing_cols:
+            op.add_column("resources", sa.Column("origin", sa.String(), nullable=True, server_default="manual"))
 
     # ── proposals table ───────────────────────────────────────────────────────
-    op.create_table(
-        "proposals",
-        sa.Column("id",            sa.String(), primary_key=True),
-        sa.Column("project_id",    sa.String(), sa.ForeignKey("projects.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("title",         sa.String(), nullable=False),
-        sa.Column("resource_type", sa.String(), nullable=False),
-        sa.Column("source_url",    sa.String(), nullable=True),
-        sa.Column("read_time",     sa.String(), nullable=True),
-        sa.Column("why_relevant",  sa.Text(),   nullable=True, server_default=""),
-        sa.Column("takeaways",     postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column("gap_type",      sa.String(), nullable=True, server_default=""),
-        sa.Column("gap_label",     sa.String(), nullable=True, server_default=""),
-        sa.Column("status",        sa.String(), nullable=True, server_default="pending"),
-        sa.Column("created",       sa.Date(),   nullable=True),
-    )
-    op.create_index("ix_proposals_project_id", "proposals", ["project_id"])
-    op.create_index("ix_proposals_status",     "proposals", ["status"])
+    if "proposals" not in existing_tables:
+        op.create_table(
+            "proposals",
+            sa.Column("id",            sa.String(), primary_key=True),
+            sa.Column("project_id",    sa.String(), sa.ForeignKey("projects.id", ondelete="CASCADE"), nullable=False),
+            sa.Column("title",         sa.String(), nullable=False),
+            sa.Column("resource_type", sa.String(), nullable=False),
+            sa.Column("source_url",    sa.String(), nullable=True),
+            sa.Column("read_time",     sa.String(), nullable=True),
+            sa.Column("why_relevant",  sa.Text(),   nullable=True, server_default=""),
+            sa.Column("takeaways",     postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+            sa.Column("gap_type",      sa.String(), nullable=True, server_default=""),
+            sa.Column("gap_label",     sa.String(), nullable=True, server_default=""),
+            sa.Column("status",        sa.String(), nullable=True, server_default="pending"),
+            sa.Column("created",       sa.Date(),   nullable=True),
+        )
+        op.create_index("ix_proposals_project_id", "proposals", ["project_id"])
+        op.create_index("ix_proposals_status",     "proposals", ["status"])
 
 
 def downgrade() -> None:
