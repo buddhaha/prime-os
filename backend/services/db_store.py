@@ -424,7 +424,8 @@ class DBStore:
         if not row or row.status != "pending":
             return None
 
-        # Create the resource
+        import json as _json
+        # Create the resource — store why_relevant in description, takeaways as JSON in content
         resource = await self.create_resource(ResourceCreate(
             type=row.resource_type,
             title=row.title,
@@ -434,6 +435,7 @@ class DBStore:
             tags=[row.gap_type, row.gap_label] if row.gap_label else [],
             status=ResourceStatus.inbox,
             origin="suggested",
+            content=_json.dumps(row.takeaways or []),
         ))
 
         # Mark proposal accepted

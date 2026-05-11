@@ -487,6 +487,7 @@
   .doc-btn:hover { background: var(--bg3); color: var(--text); }
   .doc-btn-primary { background: rgba(0,212,255,.12); border-color: var(--cyan-dim); color: var(--cyan); }
   .doc-btn-primary:hover { background: rgba(0,212,255,.2); }
+  .doc-context { margin-top: 8px; padding: 10px 12px; background: var(--bg3); border-radius: 8px; font-size: 12px; }
   .unread-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--cyan); flex-shrink: 0; margin-top: 5px; }
 
   /* Proposal cards */
@@ -978,6 +979,7 @@
           <button class="add-resource-btn" onclick="openResourceModal()">+ Add resource</button>
           <button class="analyze-btn" id="analyze-btn" onclick="analyzeProject()">Analyze gaps</button>
         </div>
+        <div id="docs-notice" style="display:none;font-size:12px;margin-bottom:12px;padding:8px 12px;background:var(--bg3);border-radius:8px;"></div>
         <div id="docs-content"></div>
       </div>
       <div class="tab-content" id="tab-concepts"><div id="concepts-content"></div></div>
@@ -1513,6 +1515,22 @@ function renderDocRow(r) {
   let actionBtn = '';
   if (isInbox)   actionBtn = `<button class="doc-btn doc-btn-primary" onclick="setResourceStatus('${r.id}','reading')">Start reading</button>`;
   if (isReading) actionBtn = `<button class="doc-btn doc-btn-primary" onclick="setResourceStatus('${r.id}','processed')">Mark processed</button>`;
+  if (isDone)    actionBtn = `<button class="doc-btn" onclick="setResourceStatus('${r.id}','reading')">Re-read</button>`;
+
+  // For suggested resources: show why-relevant + takeaways if available
+  let contextBlock = '';
+  if (r.origin === 'suggested' && !isDone) {
+    const why = r.description || '';
+    let takeaways = [];
+    try { const p = JSON.parse(r.content || '[]'); if (Array.isArray(p)) takeaways = p; } catch {}
+    if (why || takeaways.length) {
+      contextBlock = `
+      <div class="doc-context">
+        ${why ? `<div class="pb-label" style="margin-bottom:4px;">Why it's relevant</div><div class="pb-text">${why}</div>` : ''}
+        ${takeaways.length ? `<div class="pb-label" style="margin-top:8px;margin-bottom:4px;">Key takeaways</div><ul class="pb-list">${takeaways.map(t=>`<li>${t}</li>`).join('')}</ul>` : ''}
+      </div>`;
+    }
+  }
 
   return `
   <div class="doc-row ${isInbox?'inbox-item':''} ${isDone?'processed':''}" id="doc-row-${r.id}">
@@ -1523,6 +1541,7 @@ function renderDocRow(r) {
         ? `<a href="${r.source_url}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${r.title}</a>`
         : r.title}</div>
       <div class="doc-row-meta">${docMetaLine(r)}</div>
+      ${contextBlock}
     </div>
     <div class="doc-row-actions">
       ${docOriginTag(r.origin)}
@@ -1660,22 +1679,40 @@ async function dismissProposal(proposalId) {
   } catch(e) { console.error('dismissProposal:', e); }
 }
 
+function showDocsNotice(msg, isError) {
+  const el = document.getElementById('docs-notice');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = msg ? 'block' : 'none';
+  el.style.color = isError ? 'var(--red, #f87171)' : 'var(--text-dim)';
+}
+
 async function analyzeProject() {
   if (!curProject) return;
   const btn = document.getElementById('analyze-btn');
   btn.disabled = true;
   btn.textContent = 'Analyzing…';
+  showDocsNotice('Running gap analysis…');
   try {
     await API.post(`/api/proposals/analyze/${curProject.project.id}`, {});
-    // Poll for results — analysis runs in background
-    await new Promise(r => setTimeout(r, 4000));
+    // Poll for results — analysis runs in background, wait up to 10s
+    for (let i = 0; i < 5; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      const proposals = await API.get(`/api/proposals?project_id=${curProject.project.id}&status=pending`);
+      if (proposals.length > 0) break;
+    }
     const [resources, proposals] = await Promise.all([
       API.get(`/api/resources?project_id=${curProject.project.id}`),
       API.get(`/api/proposals?project_id=${curProject.project.id}&status=pending`),
     ]);
+    showDocsNotice(proposals.length ? `Found ${proposals.length} gap${proposals.length>1?'s':''}.` : 'No new gaps found for this project.');
     renderDocs(resources, proposals);
   } catch(e) {
     console.error('analyzeProject:', e);
+    const msg = e.message?.includes('503')
+      ? 'ANTHROPIC_API_KEY is not set — add it to your .env and restart.'
+      : `Analysis failed: ${e.message}`;
+    showDocsNotice(msg, true);
   } finally {
     btn.disabled = false;
     btn.textContent = 'Analyze gaps';
