@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     # Anthropic
     anthropic_api_key: str = ""
 
+    # Optional API key guard — set PRIME_API_KEY to require X-API-Key on all /api routes
+    prime_api_key: str = ""
+
     # PostgreSQL connection URL
     database_url: str = "postgresql+asyncpg://prime:prime_dev@localhost:5432/prime"
 

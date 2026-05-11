@@ -181,6 +181,13 @@ class GraphEngine:
             )
             self._graph_data = self._to_wire_format()
 
+    def remove_edge(self, edge_id: str) -> None:
+        for u, v, data in list(self._g.edges(data=True)):
+            if data.get("id") == edge_id:
+                self._g.remove_edge(u, v)
+                self._graph_data = self._to_wire_format()
+                return
+
     # ─────────────────────────────────────────
     # Queries
     # ─────────────────────────────────────────

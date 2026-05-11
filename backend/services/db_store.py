@@ -387,6 +387,13 @@ class DBStore:
         await self.session.flush()
         return _edge(row)
 
+    async def delete_edge(self, edge_id: str) -> bool:
+        row = (await self.session.execute(select(EdgeRow).where(EdgeRow.id == edge_id))).scalar_one_or_none()
+        if not row:
+            return False
+        await self.session.delete(row)
+        return True
+
     # ── Proposals ──────────────────────────────
 
     async def list_proposals(self, project_id: str | None = None, status: str | None = None) -> list[Proposal]:

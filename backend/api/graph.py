@@ -92,6 +92,18 @@ async def create_edge(
     return edge
 
 
+@router.delete("/graph/edges/{edge_id}", status_code=204)
+async def delete_edge(
+    edge_id: str,
+    store: DBStore     = Depends(get_store),
+    graph: GraphEngine = Depends(get_graph),
+):
+    ok = await store.delete_edge(edge_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Edge not found")
+    graph.remove_edge(edge_id)
+
+
 # ── Proposals ──────────────────────────────────────────────────────────────────
 
 @router.get("/proposals", response_model=list[Proposal])
