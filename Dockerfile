@@ -8,6 +8,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY backend/ ./backend/
+COPY alembic/ ./alembic/
+COPY alembic.ini .
 COPY prime-os.html .
 
 EXPOSE 7474
