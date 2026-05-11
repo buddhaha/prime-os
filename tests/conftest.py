@@ -15,6 +15,7 @@ import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy import text
+from sqlalchemy.pool import NullPool
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     create_async_engine,
@@ -45,6 +46,7 @@ async def test_engine():
     admin = create_async_engine(
         "postgresql+asyncpg://prime:prime_dev@db:5432/prime",
         isolation_level="AUTOCOMMIT",
+        poolclass=NullPool,
     )
     async with admin.connect() as conn:
         exists = await conn.scalar(
@@ -54,7 +56,7 @@ async def test_engine():
             await conn.execute(text("CREATE DATABASE prime_test"))
     await admin.dispose()
 
-    engine = create_async_engine(TEST_DB_URL)
+    engine = create_async_engine(TEST_DB_URL, poolclass=NullPool)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)

@@ -8,6 +8,8 @@ import pytest
 from httpx import AsyncClient
 from tests.conftest import project_create
 
+pytestmark = pytest.mark.asyncio(loop_scope="session")
+
 
 # ── Health ────────────────────────────────────────────────────────────────────
 

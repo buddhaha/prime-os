@@ -6,6 +6,8 @@ rolled back automatically after each test.
 import json
 import pytest
 
+pytestmark = pytest.mark.asyncio(loop_scope="session")
+
 from backend.services.db_store import DBStore
 from backend.models.project import DecisionCreate, ConceptCreate
 from backend.models.resource import (

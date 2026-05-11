@@ -15,8 +15,8 @@ router = APIRouter(prefix="/api", tags=["graph"])
 # ── Full graph ─────────────────────────────────────────────────────────────────
 
 @router.get("/graph", response_model=GraphData)
-async def get_graph(graph: GraphEngine = Depends(get_graph)):
-    return graph.get_graph()
+async def read_graph(graph_engine: GraphEngine = Depends(get_graph)):
+    return graph_engine.get_graph()
 
 
 @router.get("/graph/stats")
