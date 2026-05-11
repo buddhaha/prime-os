@@ -1,12 +1,14 @@
 """
 Shared fixtures for PRIME OS test suite.
 
-Test isolation strategy:
-  - A session-scoped engine creates/tears-down all tables once.
-  - Each test function gets its own DB session wrapped in a transaction
-    that is rolled back at the end — zero cleanup required per test.
-  - The HTTP client overrides get_store / get_graph so it uses the same
-    in-progress transaction, keeping API tests isolated too.
+Isolation strategy: truncate all tables before each test (via the
+autouse `isolate` fixture). This avoids asyncpg's "another operation
+in progress" error that occurs when wrapping tests in manual rollback
+transactions. Each test starts with a clean database.
+
+Session-scoped engine: tables are created once per pytest run.
+Function-scoped session: each test gets its own AsyncSession; SQLAlchemy
+uses autobegin so flush() works without an explicit begin() call.
 """
 
 import pytest
@@ -24,16 +26,22 @@ from backend.main import app
 from backend.dependencies import get_store, get_graph
 from backend.services.db_store import DBStore
 from backend.services.graph_engine import GraphEngine
+from backend.models.project import ProjectCreate, DecisionCreate, ConceptCreate
+from backend.models.resource import ResourceCreate, ResourceType, ProposalCreate
 
 TEST_DB_URL = "postgresql+asyncpg://prime:prime_dev@db:5432/prime_test"
 
+_TABLES = [
+    "proposals", "resource_projects", "resources",
+    "concepts", "todos", "decisions", "projects",
+]
 
-# ── One-time test database setup ──────────────────────────────────────────────
+
+# ── Session-scoped engine — tables are created once ──────────────────────────
 
 @pytest_asyncio.fixture(scope="session")
 async def test_engine():
-    """Create prime_test DB if missing, then create all tables from ORM metadata."""
-    # Use the prime DB with AUTOCOMMIT to issue CREATE DATABASE
+    """Create prime_test database if missing, then build all ORM tables."""
     admin = create_async_engine(
         "postgresql+asyncpg://prime:prime_dev@db:5432/prime",
         isolation_level="AUTOCOMMIT",
@@ -48,53 +56,56 @@ async def test_engine():
 
     engine = create_async_engine(TEST_DB_URL)
     async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
     yield engine
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
     await engine.dispose()
 
 
-# ── Per-test isolated session ─────────────────────────────────────────────────
+# ── Per-test isolation via TRUNCATE (autouse) ─────────────────────────────────
+
+@pytest_asyncio.fixture(autouse=True)
+async def isolate(test_engine):
+    """Truncate all tables before every test for a clean slate."""
+    async with test_engine.connect() as conn:
+        await conn.execute(
+            text(f"TRUNCATE TABLE {', '.join(_TABLES)} RESTART IDENTITY CASCADE")
+        )
+        await conn.commit()
+
+
+# ── Per-test session ──────────────────────────────────────────────────────────
 
 @pytest_asyncio.fixture
 async def db_session(test_engine):
     """
-    Opens a real transaction at the start of each test and rolls it back
-    at the end. Flushes within DBStore methods are visible inside the test
-    but never hit the DB permanently.
+    Fresh AsyncSession per test. SQLAlchemy uses autobegin, so flush()
+    works without an explicit begin() call. The session auto-rollbacks
+    any uncommitted work when closed.
     """
     factory = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
     async with factory() as session:
-        txn = await session.begin()
-        try:
-            yield session
-        finally:
-            await txn.rollback()
+        yield session
 
 
 @pytest_asyncio.fixture
 async def store(db_session):
-    """DBStore backed by the test session."""
     return DBStore(db_session)
 
 
-# ── HTTP test client ──────────────────────────────────────────────────────────
+# ── HTTP client with dependency injection override ────────────────────────────
 
 @pytest_asyncio.fixture
 async def client(db_session):
     """
-    AsyncClient pointing at the FastAPI app.
-    - The app lifespan does NOT run (ASGITransport skips it).
-    - get_store is overridden to use the test session.
-    - get_graph is overridden with a fresh empty GraphEngine.
+    AsyncClient pointing at the FastAPI app with the lifespan skipped.
+    All requests share db_session so writes in one request are visible
+    to subsequent queries in the same test (autobegin keeps them in one txn).
     """
     graph = GraphEngine()
 
     async def _store_override():
-        # Must be an async generator to match FastAPI's Depends(get_store)
         yield DBStore(db_session)
 
     def _graph_override():
@@ -112,43 +123,29 @@ async def client(db_session):
     app.dependency_overrides.clear()
 
 
-# ── Convenience data factories ────────────────────────────────────────────────
+# ── Typed data factories ──────────────────────────────────────────────────────
 
-def make_project_payload(**kwargs):
-    base = dict(
-        id="proj-test",
-        name="Test Project",
-        emoji="🧪",
-        description="A project for testing",
-        color="#00d4ff",
-        status="active",
-        project_type="personal",
-        tags=[],
-        progress="0",
-    )
-    base.update(kwargs)
-    return base
+def project_create(**kwargs) -> ProjectCreate:
+    defaults = dict(name="Test Project", emoji="🧪", description="", color="#00d4ff")
+    defaults.update(kwargs)
+    return ProjectCreate(**defaults)
 
 
-def make_resource_payload(**kwargs):
-    base = dict(
-        type="article",
+def resource_create(project_id: str, **kwargs) -> ResourceCreate:
+    defaults = dict(
+        type=ResourceType.article,
         title="Test Resource",
         description="Why this matters",
         source_url="https://example.com/test",
-        project_ids=["proj-test"],
-        tags=[],
-        content="",
-        status="inbox",
-        origin="manual",
+        project_ids=[project_id],
     )
-    base.update(kwargs)
-    return base
+    defaults.update(kwargs)
+    return ResourceCreate(**defaults)
 
 
-def make_proposal_payload(**kwargs):
-    base = dict(
-        project_id="proj-test",
+def proposal_create(project_id: str, **kwargs) -> ProposalCreate:
+    defaults = dict(
+        project_id=project_id,
         title="Deep dive into async Python",
         resource_type="article",
         source_url="https://example.com/async",
@@ -158,5 +155,5 @@ def make_proposal_payload(**kwargs):
         gap_type="concept",
         gap_label="async patterns",
     )
-    base.update(kwargs)
-    return base
+    defaults.update(kwargs)
+    return ProposalCreate(**defaults)
