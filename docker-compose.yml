@@ -28,6 +28,8 @@ services:
     volumes:
       # Mount source so code and frontend changes are live without rebuilding
       - ./backend:/app/backend
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
       - ./prime-os.html:/app/prime-os.html
     depends_on:
       db:
