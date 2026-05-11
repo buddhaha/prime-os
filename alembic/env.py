@@ -1,46 +1,47 @@
 """
-Alembic environment — async SQLAlchemy (asyncpg).
+Alembic environment — supports both sync (psycopg2) and async (asyncpg) URLs.
+
+When called from main.py at startup, the URL is already rewritten to psycopg2
+so this runs as a plain sync migration. When called from the CLI with an asyncpg
+URL, it switches to async mode automatically.
 
 Run from the repo root:
-    alembic revision --autogenerate -m "description"
-    alembic upgrade head
+    DATABASE_URL=postgresql+psycopg2://prime:prime_dev@localhost/prime alembic upgrade head
+    DATABASE_URL=postgresql+psycopg2://prime:prime_dev@localhost/prime alembic revision --autogenerate -m "..."
 """
 
-import asyncio
 import os
 from logging.config import fileConfig
 
-from sqlalchemy import pool
-from sqlalchemy.ext.asyncio import async_engine_from_config
-
+from sqlalchemy import create_engine, pool
 from alembic import context
 
-# ── Import our ORM metadata for autogenerate ──
+# ── Import ORM metadata for autogenerate ──────────────────────────────────────
 from backend.database import Base
 
-# Alembic Config object
 alembic_cfg = context.config
 
-# Wire up Python logging from alembic.ini
 if alembic_cfg.config_file_name is not None:
     fileConfig(alembic_cfg.config_file_name)
 
-# Metadata for autogenerate
 target_metadata = Base.metadata
 
 
 def get_url() -> str:
-    """Read DATABASE_URL from env (set by Docker / .env), falling back to alembic.ini."""
-    url = os.environ.get("DATABASE_URL")
-    if url:
-        return url
+    """
+    Priority: sqlalchemy.url set by caller (main.py) > DATABASE_URL env > alembic.ini.
+    Normalises asyncpg URLs to psycopg2 for sync Alembic runs.
+    """
     url = alembic_cfg.get_main_option("sqlalchemy.url")
-    if url:
-        return url
-    raise RuntimeError("DATABASE_URL not set. Export it or add sqlalchemy.url to alembic.ini.")
+    if not url:
+        url = os.environ.get("DATABASE_URL", "")
+    if not url:
+        raise RuntimeError("No DATABASE_URL — set the env var or sqlalchemy.url in alembic.ini")
+    # Alembic runs sync; replace async driver if present
+    return url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
 
 
-# ── Offline mode (generates SQL without connecting) ──────────────────────────
+# ── Offline mode ──────────────────────────────────────────────────────────────
 
 def run_migrations_offline() -> None:
     context.configure(
@@ -53,27 +54,15 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-# ── Online mode (connects via asyncpg) ───────────────────────────────────────
-
-def do_run_migrations(connection):
-    context.configure(connection=connection, target_metadata=target_metadata)
-    with context.begin_transaction():
-        context.run_migrations()
-
-
-async def run_async_migrations() -> None:
-    engine = async_engine_from_config(
-        {"sqlalchemy.url": get_url()},
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
-    async with engine.connect() as conn:
-        await conn.run_sync(do_run_migrations)
-    await engine.dispose()
-
+# ── Online mode (sync psycopg2) ───────────────────────────────────────────────
 
 def run_migrations_online() -> None:
-    asyncio.run(run_async_migrations())
+    engine = create_engine(get_url(), poolclass=pool.NullPool)
+    with engine.connect() as conn:
+        context.configure(connection=conn, target_metadata=target_metadata)
+        with context.begin_transaction():
+            context.run_migrations()
+    engine.dispose()
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

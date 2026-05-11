@@ -8,6 +8,7 @@ Or via Docker Compose:
     docker-compose up
 """
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -16,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from .config import settings
-from .database import create_tables, AsyncSessionLocal
+from .database import AsyncSessionLocal
 from .services.graph_engine  import GraphEngine
 from .services.agent_runtime import AgentRuntime
 from .services.db_store      import DBStore
@@ -27,6 +28,25 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 log = logging.getLogger("prime")
 
 
+def _run_migrations() -> None:
+    """Run Alembic migrations synchronously (called via asyncio.to_thread)."""
+    import os
+    from alembic.config import Config
+    from alembic import command
+
+    # Locate alembic.ini relative to this file's repo root
+    import pathlib
+    ini = pathlib.Path(__file__).parent.parent / "alembic.ini"
+    cfg = Config(str(ini))
+    # Override URL so Alembic uses the same DATABASE_URL as the app
+    # Alembic needs a sync driver — swap asyncpg → psycopg2 for the migration run
+    sync_url = settings.database_url.replace(
+        "postgresql+asyncpg://", "postgresql+psycopg2://"
+    )
+    cfg.set_main_option("sqlalchemy.url", sync_url)
+    command.upgrade(cfg, "head")
+
+
 # ─────────────────────────────────────────────
 # Lifespan — startup / shutdown
 # ─────────────────────────────────────────────
@@ -35,9 +55,10 @@ log = logging.getLogger("prime")
 async def lifespan(app: FastAPI):
     log.info(f"PRIME OS starting. DB: {settings.database_url.split('@')[-1]}")
 
-    # 1. Create tables (idempotent — safe to run on every boot)
-    await create_tables()
-    log.info("Database tables ready.")
+    # 1. Run Alembic migrations (idempotent — applies any pending migrations)
+    log.info("Running database migrations…")
+    await asyncio.to_thread(_run_migrations)
+    log.info("Database migrations complete.")
 
     # 2. Initialise graph + runtime singletons
     graph_engine = GraphEngine()
