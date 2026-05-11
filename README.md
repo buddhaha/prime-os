@@ -43,11 +43,17 @@ open http://localhost:7474
 
 That's it. On first boot, if `~/PRIME` is empty, the server seeds it automatically with the example projects. No separate setup step.
 
-The API key is optional — projects, graph, and resources all work without one. Agents require it.
+The API key is optional — projects, graph, and resources all work without one. Agents and gap analysis require an LLM.
 
 ```bash
-# With an API key (enables agent execution)
+# With Claude (default)
 ANTHROPIC_API_KEY=sk-ant-... docker-compose up
+
+# With OpenAI
+LLM_MODEL=gpt-4o-mini OPENAI_API_KEY=sk-... docker-compose up
+
+# With a local Ollama model (no key needed)
+LLM_MODEL=ollama/llama3.2 LLM_API_BASE=http://host.docker.internal:11434 docker-compose up
 
 # Or put it in .env
 cp .env.example .env   # fill in key, then:
@@ -141,8 +147,9 @@ See [skills/README.md](skills/README.md) for details.
 |-------|------|--------|
 | 1 | Frontend wired to live API | ✅ Done |
 | 2 | Docker Compose | ✅ Done |
-| 3 | PostgreSQL (replace file store) | Planned |
-| 3 | LiteLLM abstraction (Claude → Ollama → vLLM) | Planned |
+| 3 | PostgreSQL (replace file store) | ✅ Done |
+| 3 | Test suite (TDD foundation) | ✅ Done |
+| 3 | LiteLLM abstraction (Claude → Ollama → vLLM) | ✅ Done |
 | 4 | News view (RSS + X feed aggregation) | Planned |
 | 5 | IBM pre-sales RAG view (doc ingestion + pgvector) | Planned |
 | 6 | Langfuse observability + voice interface | Later |
@@ -153,7 +160,10 @@ See [skills/README.md](skills/README.md) for details.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ANTHROPIC_API_KEY` | — | Optional. Required only to run agents |
-| `PRIME_WORKSPACE` | `~/PRIME` | Where PRIME stores all data |
+| `LLM_MODEL` | `claude-haiku-4-5-20251001` | Model string passed to LiteLLM. Prefix selects provider: `claude-*`, `gpt-*`, `ollama/*`, `openai/*` |
+| `LLM_API_BASE` | — | Base URL for local/self-hosted models (e.g. `http://localhost:11434` for Ollama) |
+| `ANTHROPIC_API_KEY` | — | Required when `LLM_MODEL` is a Claude model |
+| `OPENAI_API_KEY` | — | Required when `LLM_MODEL` is an OpenAI model |
+| `DATABASE_URL` | local postgres | Full asyncpg connection string |
 | `PRIME_HOST` | `127.0.0.1` | Server bind address |
 | `PRIME_PORT` | `7474` | Server port |

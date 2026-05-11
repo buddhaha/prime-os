@@ -25,16 +25,15 @@ import uuid
 from datetime import datetime
 from typing import Any, Callable, AsyncIterator
 
-import anthropic
 import httpx
 
+from . import llm
 from ..models.agent import (
     Agent, AgentRun, AgentTask, AgentEvent,
     LogEntry, LogLevel, RunStatus, AgentTool,
 )
 from ..models.project import DecisionCreate, DecisionType, Alternative
 from ..models.resource import ResourceCreate, ResourceType, EdgeCreate, RelationType
-from ..config import settings
 
 
 # ─────────────────────────────────────────────
@@ -168,10 +167,8 @@ class AgentRuntime:
     """
 
     def __init__(self, file_store, graph_engine) -> None:
-        # Lazy imports to avoid circular dependency
         self._store = file_store
         self._graph = graph_engine
-        self._client: anthropic.AsyncAnthropic | None = None  # lazy — only created when a run starts
 
         # run_id → asyncio.Task
         self._active: dict[str, asyncio.Task] = {}
@@ -184,19 +181,6 @@ class AgentRuntime:
 
     def set_broadcaster(self, fn: Callable[[AgentEvent], None]) -> None:
         self._broadcast = fn
-
-    @property
-    def _anthropic(self) -> anthropic.AsyncAnthropic:
-        """Lazy Anthropic client — created on first use so the server starts without a key."""
-        if self._client is None:
-            key = settings.anthropic_api_key
-            if not key:
-                raise RuntimeError(
-                    "ANTHROPIC_API_KEY is not set. "
-                    "Agent runs require an API key — set it in .env or the environment."
-                )
-            self._client = anthropic.AsyncAnthropic(api_key=key)
-        return self._client
 
     # ─────────────────────────────────────────
     # Public API
@@ -278,47 +262,35 @@ class AgentRuntime:
                     {"turns": turns, "progress": min(95, turns * (90 // agent.max_turns))}
                 )
 
-                response = await self._anthropic.messages.create(
+                response = await llm.chat(
+                    messages,
+                    system=system,
                     model=agent.model,
                     max_tokens=agent.max_tokens,
-                    system=system,
                     tools=tools,
-                    messages=messages,
                 )
 
-                # Collect text from this turn
-                turn_text = ""
-                tool_calls = []
-
-                for block in response.content:
-                    if block.type == "text":
-                        turn_text += block.text
-                        final_text += block.text + "\n"
-                    elif block.type == "tool_use":
-                        tool_calls.append(block)
+                # Collect text and tool calls from this turn (OpenAI format)
+                turn_text = llm.get_text(response)
+                tool_calls = llm.get_tool_calls(response)
 
                 if turn_text:
+                    final_text += turn_text + "\n"
                     await self._log(run.id, LogLevel.info, turn_text[:200] + ("…" if len(turn_text) > 200 else ""))
 
                 # Append assistant turn to history
-                messages.append({"role": "assistant", "content": response.content})
+                messages.append(llm.assistant_message(response))
 
-                # Stop if Claude is done (no tool calls, or end_turn)
-                if response.stop_reason == "end_turn" and not tool_calls:
+                # Stop if the model is done (no tool calls)
+                if llm.is_done(response):
                     await self._log(run.id, LogLevel.ok, "Agent finished.")
                     break
 
-                # Process tool calls
-                if tool_calls:
-                    tool_results = []
-                    for call in tool_calls:
-                        result = await self._dispatch_tool(run, agent, call.name, call.input)
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": call.id,
-                            "content": json.dumps(result),
-                        })
-                    messages.append({"role": "user", "content": tool_results})
+                # Process tool calls and append results
+                for tc in tool_calls:
+                    args = llm.parse_tool_args(tc)
+                    result = await self._dispatch_tool(run, agent, tc.function.name, args)
+                    messages.append(llm.tool_result_message(tc.id, result))
 
             # Save result
             if final_text.strip():

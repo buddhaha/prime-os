@@ -22,8 +22,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-import anthropic
-
+from . import llm
 from .db_store import DBStore
 from ..models.resource import ProposalCreate, ResourceType
 
@@ -171,10 +170,8 @@ Rules:
 """
 
 
-async def generate_proposal(gap: Gap, api_key: str) -> dict[str, Any] | None:
-    """Call Claude to generate a proposal for a single gap. Returns raw dict or None on failure."""
-    client = anthropic.AsyncAnthropic(api_key=api_key)
-
+async def generate_proposal(gap: Gap) -> dict[str, Any] | None:
+    """Call the configured LLM to generate a proposal for a single gap."""
     prompt = (
         f"Knowledge gap to fill:\n\n{gap.context}\n\n"
         f"Find the best external resource (article, PDF, video, or documentation) "
@@ -182,13 +179,12 @@ async def generate_proposal(gap: Gap, api_key: str) -> dict[str, Any] | None:
     )
 
     try:
-        response = await client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=600,
+        response = await llm.chat(
+            [{"role": "user", "content": prompt}],
             system=_PROPOSAL_SYSTEM,
-            messages=[{"role": "user", "content": prompt}],
+            max_tokens=600,
         )
-        text = response.content[0].text.strip()
+        text = llm.get_text(response).strip()
         # Strip markdown code fences if present
         if text.startswith("```"):
             text = text.split("```")[1]
@@ -204,7 +200,7 @@ async def generate_proposal(gap: Gap, api_key: str) -> dict[str, Any] | None:
 # Orchestrator
 # ─────────────────────────────────────────────
 
-async def run_analysis(store: DBStore, project_id: str, api_key: str) -> list[str]:
+async def run_analysis(store: DBStore, project_id: str) -> list[str]:
     """
     Detect gaps, generate proposals for each, persist to DB.
     Returns list of created proposal IDs.
@@ -225,7 +221,7 @@ async def run_analysis(store: DBStore, project_id: str, api_key: str) -> list[st
 
     created_ids: list[str] = []
     for gap in gaps:
-        raw = await generate_proposal(gap, api_key)
+        raw = await generate_proposal(gap)
         if not raw:
             continue
 

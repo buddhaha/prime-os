@@ -8,7 +8,7 @@ Personal intelligence system. Local-first, Python backend, Claude agents.
 
 ```
 ┌───────────────────────────────────────────────────────┐
-│               Frontend (jarvis-os.html)               │
+│               Frontend (prime-os.html)                │
 │          Future: React SPA or Electron app            │
 └──────────────────────┬────────────────────────────────┘
                        │  REST + WebSocket
@@ -24,14 +24,14 @@ Personal intelligence system. Local-first, Python backend, Claude agents.
 └───────┬───────────────┬──────────────┬───────────────┘
         │               │              │
 ┌───────▼──────┐ ┌──────▼──────┐ ┌────▼────────────────┐
-│  FileStore   │ │ GraphEngine │ │   AgentRuntime      │
+│   DBStore    │ │ GraphEngine │ │   AgentRuntime      │
 │              │ │             │ │                     │
-│ Reads/writes │ │  NetworkX   │ │ asyncio tasks       │
-│ ~/PRIME/**   │ │  DiGraph    │ │ Claude API calls    │
-│ (no DB)      │ │  in-memory  │ │ tool dispatch       │
+│  SQLAlchemy  │ │  NetworkX   │ │ asyncio tasks       │
+│  async ORM   │ │  DiGraph    │ │ LiteLLM calls       │
+│  PostgreSQL  │ │  in-memory  │ │ tool dispatch       │
 └───────┬──────┘ └─────────────┘ └────────┬────────────┘
         │                                  │
-        │  ~/PRIME/ filesystem             │  api.anthropic.com
+        │  PostgreSQL (prime DB)            │  LiteLLM → Claude / OpenAI / Ollama / vLLM
         └──────────────────────────────────┘
 ```
 

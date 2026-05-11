@@ -113,8 +113,11 @@ async def analyze_project(
     Trigger gap analysis for a project. Runs proposal generation in the background.
     Returns immediately with 202 Accepted — poll GET /api/proposals?project_id=... for results.
     """
-    if not settings.anthropic_api_key:
-        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY not configured")
+    if not settings.llm_ready:
+        raise HTTPException(
+            status_code=503,
+            detail=f"LLM not ready — set the API key for model '{settings.llm_model}' in .env"
+        )
 
     from ..services.proposal_engine import run_analysis
     from ..database import AsyncSessionLocal
@@ -124,7 +127,7 @@ async def analyze_project(
         async with AsyncSessionLocal() as session:
             async with session.begin():
                 bg_store = Store(session)
-                await run_analysis(bg_store, project_id, settings.anthropic_api_key)
+                await run_analysis(bg_store, project_id)
 
     background_tasks.add_task(_run)
     return {"status": "analysis started", "project_id": project_id}
