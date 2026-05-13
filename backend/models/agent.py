@@ -80,8 +80,8 @@ class Agent(BaseModel):
     emoji:         str  = "🤖"
     description:   str  = ""
 
-    # Claude model to use
-    model:         str  = "claude-opus-4-6"
+    # LiteLLM model string — empty means use PRIME_MODEL from settings
+    model:         str  = ""
 
     # System prompt — defaults to ROLE_PROMPTS[role] if empty
     system_prompt: str  = ""
@@ -105,7 +105,7 @@ class AgentCreate(BaseModel):
     role:          AgentRole
     emoji:         str  = "🤖"
     description:   str  = ""
-    model:         str  = "claude-opus-4-6"
+    model:         str  = ""
     system_prompt: str  = ""
     tools:         list[AgentTool] = Field(default_factory=list)
     max_tokens:    int  = 4096

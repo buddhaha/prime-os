@@ -24,15 +24,18 @@ from sqlalchemy.ext.asyncio import (
 
 from backend.database import Base
 from backend.main import app
-from backend.dependencies import get_store, get_graph
+from backend.dependencies import get_store, get_graph, get_runtime
 from backend.services.db_store import DBStore
 from backend.services.graph_engine import GraphEngine
+from backend.services.agent_runtime import AgentRuntime
 from backend.models.project import ProjectCreate, DecisionCreate, ConceptCreate
 from backend.models.resource import ResourceCreate, ResourceType, ProposalCreate
+from backend.models.agent import AgentRun, RunStatus, LogEntry, LogLevel
 
 TEST_DB_URL = "postgresql+asyncpg://prime:prime_dev@db:5432/prime_test"
 
 _TABLES = [
+    "agent_logs", "agent_runs",
     "proposals", "resource_projects", "resources",
     "concepts", "todos", "decisions", "projects",
 ]
@@ -125,6 +128,43 @@ async def client(db_session):
     app.dependency_overrides.clear()
 
 
+# ── AgentRuntime with test DB ─────────────────────────────────────────────────
+
+@pytest_asyncio.fixture
+async def runtime(test_engine):
+    """AgentRuntime wired to the test database."""
+    factory = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
+    graph = GraphEngine()
+    return AgentRuntime(factory, graph)
+
+
+@pytest_asyncio.fixture
+async def agent_client(db_session, runtime):
+    """AsyncClient with get_store, get_graph, and get_runtime overridden."""
+    graph = GraphEngine()
+
+    async def _store_override():
+        yield DBStore(db_session)
+
+    def _graph_override():
+        return graph
+
+    def _runtime_override():
+        return runtime
+
+    app.dependency_overrides[get_store]   = _store_override
+    app.dependency_overrides[get_graph]   = _graph_override
+    app.dependency_overrides[get_runtime] = _runtime_override
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as c:
+        yield c
+
+    app.dependency_overrides.clear()
+
+
 # ── Typed data factories ──────────────────────────────────────────────────────
 
 def project_create(**kwargs) -> ProjectCreate:
@@ -143,6 +183,20 @@ def resource_create(project_id: str, **kwargs) -> ResourceCreate:
     )
     defaults.update(kwargs)
     return ResourceCreate(**defaults)
+
+
+def agent_run_create(agent_id: str = "researcher", **kwargs) -> AgentRun:
+    from datetime import datetime
+    defaults = dict(
+        id="run-test-01",
+        agent_id=agent_id,
+        agent_name="Researcher",
+        task="Summarise active projects",
+        status=RunStatus.running,
+        started=datetime.utcnow(),
+    )
+    defaults.update(kwargs)
+    return AgentRun(**defaults)
 
 
 def proposal_create(project_id: str, **kwargs) -> ProposalCreate:

@@ -9,8 +9,8 @@ uvicorn[standard]>=0.30.0
 pydantic>=2.7.0
 pydantic-settings>=2.3.0
 
-# Anthropic Claude SDK (agent execution)
-anthropic>=0.28.0
+# LiteLLM — unified LLM interface (Anthropic, Ollama, OpenAI, etc.)
+litellm>=1.40.0
 
 # Knowledge graph
 networkx>=3.3

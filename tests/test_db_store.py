@@ -4,6 +4,8 @@ rolled back automatically after each test.
 """
 
 import json
+from datetime import datetime
+
 import pytest
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
@@ -13,7 +15,8 @@ from backend.models.project import DecisionCreate, ConceptCreate
 from backend.models.resource import (
     ResourceUpdate, ResourceStatus, ResourceOrigin,
 )
-from tests.conftest import project_create, resource_create, proposal_create
+from backend.models.agent import RunStatus, LogEntry, LogLevel
+from tests.conftest import project_create, resource_create, proposal_create, agent_run_create
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -217,3 +220,104 @@ async def test_create_concept(store: DBStore):
     c = await store.create_concept(p.id, ConceptCreate(name="Async IO", desc="Non-blocking I/O"))
     assert c.name == "Async IO"
     assert c.project_id == p.id
+
+
+# ── Agent runs ────────────────────────────────────────────────────────────────
+
+async def test_create_run(store: DBStore):
+    run = await store.create_run(agent_run_create())
+    assert run.id == "run-test-01"
+    assert run.agent_id == "researcher"
+    assert run.status == RunStatus.running
+
+
+async def test_get_run(store: DBStore):
+    await store.create_run(agent_run_create())
+    fetched = await store.get_run("run-test-01")
+    assert fetched is not None
+    assert fetched.task == "Summarise active projects"
+
+
+async def test_get_run_not_found(store: DBStore):
+    result = await store.get_run("nonexistent-run")
+    assert result is None
+
+
+async def test_update_run_status(store: DBStore):
+    await store.create_run(agent_run_create())
+    await store.update_run("run-test-01", {"status": RunStatus.completed, "progress": 100})
+    run = await store.get_run("run-test-01")
+    assert run.status == RunStatus.completed
+    assert run.progress == 100
+
+
+async def test_list_runs_returns_created(store: DBStore):
+    await store.create_run(agent_run_create(id="r1", agent_id="researcher"))
+    await store.create_run(agent_run_create(id="r2", agent_id="writer"))
+    runs = await store.list_runs()
+    ids = {r.id for r in runs}
+    assert "r1" in ids and "r2" in ids
+
+
+async def test_list_runs_filtered_by_agent(store: DBStore):
+    await store.create_run(agent_run_create(id="r1", agent_id="researcher"))
+    await store.create_run(agent_run_create(id="r2", agent_id="writer"))
+    runs = await store.list_runs(agent_id="writer")
+    assert all(r.agent_id == "writer" for r in runs)
+    assert len(runs) == 1
+
+
+async def test_list_runs_filtered_by_status(store: DBStore):
+    await store.create_run(agent_run_create(id="r1", status=RunStatus.running))
+    await store.create_run(agent_run_create(id="r2", status=RunStatus.completed))
+    await store.update_run("r2", {"status": RunStatus.completed})
+    runs = await store.list_runs(status="running")
+    assert all(r.status == RunStatus.running for r in runs)
+
+
+async def test_append_and_get_logs(store: DBStore):
+    await store.create_run(agent_run_create())
+    await store.append_log("run-test-01", LogEntry(level=LogLevel.info, message="Starting"))
+    await store.append_log("run-test-01", LogEntry(level=LogLevel.ok,   message="Done"))
+    logs = await store.get_run_logs("run-test-01")
+    assert len(logs) == 2
+    assert logs[0].message == "Starting"
+    assert logs[1].level == LogLevel.ok
+
+
+async def test_get_logs_empty_for_unknown_run(store: DBStore):
+    logs = await store.get_run_logs("no-such-run")
+    assert logs == []
+
+
+async def test_get_resource_by_id(store: DBStore):
+    p = await _make_project(store)
+    r = await _make_resource(store, p.id, title="My Article")
+    fetched = await store.get_resource(r.id)
+    assert fetched is not None
+    assert fetched.title == "My Article"
+
+
+async def test_get_resource_not_found(store: DBStore):
+    result = await store.get_resource("nonexistent")
+    assert result is None
+
+
+async def test_read_resource_content(store: DBStore):
+    from backend.models.resource import ResourceCreate, ResourceType
+    p = await _make_project(store)
+    r = await store.create_resource(ResourceCreate(
+        type=ResourceType.note,
+        title="Note with content",
+        content="Hello world",
+        project_ids=[p.id],
+    ))
+    content = await store.read_resource_content(r.id)
+    assert content == "Hello world"
+
+
+async def test_read_resource_content_empty(store: DBStore):
+    p = await _make_project(store)
+    r = await _make_resource(store, p.id)   # no content set
+    content = await store.read_resource_content(r.id)
+    assert content is None or content == ""
