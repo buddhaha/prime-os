@@ -19,14 +19,14 @@ PRIME gives you five views:
 ## Architecture
 
 ```
-prime-os.html  ←→  FastAPI (port 7474)  ←→  ~/PRIME/ (files)
+prime-os.html  ←→  FastAPI (port 7474)  ←→  PostgreSQL 16
                          ↕
                    NetworkX graph (in-memory)
                          ↕
-                   Anthropic Claude (agents)
+                   LiteLLM  →  Claude / Ollama / OpenAI
 ```
 
-All structured data lives in `~/PRIME/` as JSON + Markdown files. No database for MVP. The knowledge graph is rebuilt in memory from those files on every server start.
+Structured data lives in PostgreSQL. The knowledge graph is built in memory on startup from the DB. Agents run as asyncio tasks, persist run state and logs to the DB, and stream events to the frontend over WebSocket.
 
 Full architecture: see [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -37,33 +37,34 @@ Full architecture: see [ARCHITECTURE.md](ARCHITECTURE.md).
 ### Docker (recommended)
 
 ```bash
+cp .env.example .env   # fill in PRIME_MODEL + provider key
 docker-compose up
 open http://localhost:7474
 ```
 
-That's it. On first boot, if `~/PRIME` is empty, the server seeds it automatically with the example projects. No separate setup step.
-
-The API key is optional — projects, graph, and resources all work without one. Agents require it.
+On first boot the server seeds the DB automatically with example projects.
 
 ```bash
-# With an API key (enables agent execution)
+# Anthropic (default)
 ANTHROPIC_API_KEY=sk-ant-... docker-compose up
 
-# Or put it in .env
-cp .env.example .env   # fill in key, then:
-docker-compose up
+# Local Ollama (no API key needed)
+PRIME_MODEL=ollama/llama3.1 docker-compose up
+
+# OpenAI
+PRIME_MODEL=gpt-4o OPENAI_API_KEY=sk-... docker-compose up
 ```
 
-**To re-seed** (wipes and rebuilds the data volume):
+**Run tests:**
 
 ```bash
-docker-compose run seed
+docker-compose run --rm test
 ```
 
-To use a different data directory:
+**Re-seed the database:**
 
 ```bash
-PRIME_DATA_DIR=/path/to/your/PRIME docker-compose up
+docker-compose run --rm seed
 ```
 
 ---
@@ -71,51 +72,63 @@ PRIME_DATA_DIR=/path/to/your/PRIME docker-compose up
 ### Local (Python)
 
 ```bash
-# 1. Create and activate a virtual environment
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-
-# 2. Install dependencies
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env   # edit: set PRIME_MODEL + provider key
 
-# 3. Configure
-cp .env.example .env
-# Edit .env — add ANTHROPIC_API_KEY if you want to run agents
+# Run migrations
+DATABASE_URL=postgresql+asyncpg://prime:prime_dev@localhost:5432/prime alembic upgrade head
 
-# 4. Seed example data (creates ~/PRIME/ with sample projects)
-python -m backend.seed
-
-# 5. Start the server
+# Start the server
 uvicorn backend.main:app --host 127.0.0.1 --port 7474 --reload
 
-# 6. Open the frontend
 open http://127.0.0.1:7474
 ```
+
+---
+
+## LLM configuration
+
+PRIME uses [LiteLLM](https://docs.litellm.ai) to route agent tasks to any supported model. Set `PRIME_MODEL` in `.env`:
+
+| Model string | Provider | Key needed |
+|---|---|---|
+| `claude-sonnet-4-6` | Anthropic (cloud) | `ANTHROPIC_API_KEY` |
+| `claude-opus-4-7` | Anthropic (cloud) | `ANTHROPIC_API_KEY` |
+| `ollama/llama3.1` | Ollama (local) | none |
+| `ollama/mistral` | Ollama (local) | none |
+| `ollama/qwen2.5-coder` | Ollama (local) | none |
+| `gpt-4o` | OpenAI (cloud) | `OPENAI_API_KEY` |
+
+All other LiteLLM-supported providers work the same way — set the model string and the relevant key.
 
 ---
 
 ## Project structure
 
 ```
-prime-os.html          # Single-file frontend prototype
+prime-os.html          # Single-file frontend prototype (D3 + WebSocket)
 backend/
-  main.py              # FastAPI app entry point
+  main.py              # FastAPI app entry point + lifespan
   config.py            # Pydantic Settings (reads .env)
+  database.py          # SQLAlchemy ORM models + async engine
   dependencies.py      # Shared dependency injection
   models/              # Pydantic data models
     project.py         # Project, Decision, Todo, Concept
-    resource.py        # Resource (article/note/pdf/video/artifact), Edge
+    resource.py        # Resource, Edge, Proposal
     agent.py           # Agent, AgentRun, LogEntry
-    graph.py           # GraphNode, GraphEdge (wire format)
+    graph.py           # GraphNode, GraphEdge (D3 wire format)
   services/
-    file_store.py      # Read/write ~/PRIME filesystem
+    db_store.py        # Async PostgreSQL CRUD (all entities)
     graph_engine.py    # NetworkX DiGraph wrapper
-    agent_runtime.py   # asyncio agent runner + Claude tool loop
+    agent_runtime.py   # asyncio agent runner + LiteLLM tool loop
+    proposal_engine.py # Gap detection + Claude-powered proposal generation
   api/
     projects.py        # /api/projects routes
-    graph.py           # /api/graph + /api/resources routes
+    graph.py           # /api/graph, /api/resources, /api/proposals routes
     agents.py          # /api/agents + WebSocket routes
-  seed.py              # Populate ~/PRIME with example data
+  seed.py              # Populate DB with example data
+alembic/               # Database migrations
 skills/
   cowork/              # Skills for use in Cowork sessions
   agents/              # System prompts for PRIME agents
@@ -123,37 +136,43 @@ skills/
 
 ---
 
-## Skills
+## Environment variables
 
-The `skills/` directory contains two types of reusable prompts:
-
-**Cowork skills** (`skills/cowork/`) are used during development sessions with Claude — design reviews, architecture decisions, research briefs. Load them in any Cowork session on this project.
-
-**Agent skills** (`skills/agents/`) are the system prompts PRIME's built-in agents load when executing tasks. Editing these changes how the Research, Writer, Analyst, and Monitor agents behave.
-
-See [skills/README.md](skills/README.md) for details.
+| Variable | Default | Description |
+|---|---|---|
+| `PRIME_MODEL` | `claude-sonnet-4-6` | LiteLLM model string for agents |
+| `ANTHROPIC_API_KEY` | — | Required when using Claude models |
+| `OPENAI_API_KEY` | — | Required when using OpenAI models |
+| `OLLAMA_API_BASE` | `http://localhost:11434` | Ollama server URL |
+| `DATABASE_URL` | local postgres | PostgreSQL connection string |
+| `PRIME_HOST` | `127.0.0.1` | Server bind address |
+| `PRIME_PORT` | `7474` | Server port |
+| `PRIME_API_KEY` | — | If set, requires `X-API-Key` header on all `/api` routes |
 
 ---
 
 ## Roadmap
 
 | Phase | What | Status |
-|-------|------|--------|
+|---|---|---|
 | 1 | Frontend wired to live API | ✅ Done |
-| 2 | Docker Compose | ✅ Done |
-| 3 | PostgreSQL (replace file store) | Planned |
-| 3 | LiteLLM abstraction (Claude → Ollama → vLLM) | Planned |
-| 4 | News view (RSS + X feed aggregation) | Planned |
-| 5 | IBM pre-sales RAG view (doc ingestion + pgvector) | Planned |
-| 6 | Langfuse observability + voice interface | Later |
+| 2 | Docker Compose + PostgreSQL | ✅ Done |
+| 2 | Agent runtime + persistent runs/logs | ✅ Done |
+| 2 | Architecture quick-wins (migrate service, edge delete, API key guard) | ✅ Done |
+| 3 | LiteLLM abstraction — Claude, Ollama, OpenAI | ✅ Done |
+| 4 | News view — RSS + feed aggregation | Planned |
+| 5 | RAG view — doc ingestion + pgvector semantic search | Planned |
+| 6 | Frontend migration — Vite + React | Planned |
+| 7 | Langfuse observability + voice interface | Later |
 
 ---
 
-## Environment variables
+## Skills
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ANTHROPIC_API_KEY` | — | Optional. Required only to run agents |
-| `PRIME_WORKSPACE` | `~/PRIME` | Where PRIME stores all data |
-| `PRIME_HOST` | `127.0.0.1` | Server bind address |
-| `PRIME_PORT` | `7474` | Server port |
+The `skills/` directory contains two types of reusable prompts:
+
+**Cowork skills** (`skills/cowork/`) — used during development sessions with Claude. Load them in any Cowork session on this project.
+
+**Agent skills** (`skills/agents/`) — system prompts for PRIME's built-in agents. Editing these changes how Researcher, Writer, Analyst, and Monitor agents behave.
+
+See [skills/README.md](skills/README.md) for details.

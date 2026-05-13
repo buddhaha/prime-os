@@ -18,8 +18,18 @@ class Settings(BaseSettings):
         extra="ignore",   # no env_prefix — reads DATABASE_URL, ANTHROPIC_API_KEY directly
     )
 
-    # Anthropic
-    anthropic_api_key: str = ""
+    # LLM — model used by agents (LiteLLM model string)
+    # Anthropic examples: claude-sonnet-4-6, claude-opus-4-7
+    # Ollama examples:    ollama/llama3.1, ollama/mistral
+    # OpenAI examples:    gpt-4o, gpt-4o-mini
+    prime_model: str = "claude-sonnet-4-6"
+
+    # Provider API keys (read by LiteLLM automatically from env)
+    anthropic_api_key: str = ""   # ANTHROPIC_API_KEY
+    openai_api_key:    str = ""   # OPENAI_API_KEY
+
+    # Ollama base URL (only needed when using ollama/* models)
+    ollama_api_base: str = "http://localhost:11434"
 
     # Optional API key guard — set PRIME_API_KEY to require X-API-Key on all /api routes
     prime_api_key: str = ""

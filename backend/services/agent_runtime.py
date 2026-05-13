@@ -1,12 +1,18 @@
 """
-AgentRuntime — executes agents using the Anthropic Claude API.
+AgentRuntime — executes agents via LiteLLM (Anthropic, Ollama, OpenAI, …).
 
 Design:
   - Each agent run is an asyncio Task.
-  - Agents communicate with Claude using the tool-use API.
-  - Tools are Python functions exposed as JSON schemas to Claude.
+  - Agents communicate with the LLM using the tool-use / function-calling API.
+  - Tools are Python functions exposed as JSON schemas to the model.
   - Results are streamed to the DB log and broadcast over WebSocket.
   - The runtime holds an in-memory registry of agents and active runs.
+
+Model selection:
+  Set PRIME_MODEL in .env — LiteLLM routes automatically:
+    claude-sonnet-4-6   → Anthropic (requires ANTHROPIC_API_KEY)
+    ollama/llama3.1     → local Ollama (no key needed)
+    gpt-4o              → OpenAI (requires OPENAI_API_KEY)
 
 Tool inventory:
   list_projects()
@@ -21,13 +27,14 @@ Tool inventory:
 
 import asyncio
 import json
+import os
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, Callable
 
-import anthropic
 import httpx
+import litellm
 
 from ..models.agent import (
     Agent, AgentRun, AgentTask, AgentEvent,
@@ -40,124 +47,100 @@ from ..config import settings
 
 
 # ─────────────────────────────────────────────
-# Tool definitions (JSON schema for Claude)
+# Tool definitions — OpenAI function-calling format (LiteLLM-compatible)
 # ─────────────────────────────────────────────
 
+def _fn(name: str, description: str, parameters: dict) -> dict:
+    return {"type": "function", "function": {"name": name, "description": description, "parameters": parameters}}
+
+
 TOOL_SCHEMAS: list[dict] = [
-    {
-        "name": "list_projects",
-        "description": "List all PRIME projects with their names, status, and counts.",
-        "input_schema": {"type": "object", "properties": {}, "required": []},
-    },
-    {
-        "name": "read_project",
-        "description": "Get full details for a project: description, decisions, todos, concepts.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "project_id": {"type": "string", "description": "The project slug ID."},
-            },
-            "required": ["project_id"],
-        },
-    },
-    {
-        "name": "read_resource",
-        "description": "Read the text content of a resource in the knowledge base.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "resource_id": {"type": "string"},
-            },
-            "required": ["resource_id"],
-        },
-    },
-    {
-        "name": "write_resource",
-        "description": "Save a new resource (article, note, artifact, video summary) to the knowledge base.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "title":       {"type": "string"},
-                "type":        {"type": "string", "enum": ["article", "note", "pdf", "video", "artifact"]},
-                "content":     {"type": "string", "description": "Markdown content to store."},
-                "description": {"type": "string"},
-                "project_ids": {"type": "array", "items": {"type": "string"}},
-                "tags":        {"type": "array", "items": {"type": "string"}},
-            },
-            "required": ["title", "type", "content"],
-        },
-    },
-    {
-        "name": "create_decision",
-        "description": "Record an architectural decision (ADR) in a project.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "project_id":   {"type": "string"},
-                "title":        {"type": "string"},
-                "type":         {"type": "string", "enum": ["adr", "decision", "milestone", "note"]},
-                "context":      {"type": "string"},
-                "body":         {"type": "string"},
-                "consequences": {"type": "string"},
-                "alternatives": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "title":  {"type": "string"},
-                            "reason": {"type": "string"},
-                        },
-                    },
-                },
-                "tags": {"type": "array", "items": {"type": "string"}},
-            },
-            "required": ["project_id", "title", "body"],
-        },
-    },
-    {
-        "name": "create_note",
-        "description": "Create a quick personal note and add it to the knowledge base.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "title":       {"type": "string"},
-                "content":     {"type": "string"},
-                "project_ids": {"type": "array", "items": {"type": "string"}},
-                "tags":        {"type": "array", "items": {"type": "string"}},
-            },
-            "required": ["title", "content"],
-        },
-    },
-    {
-        "name": "link_resources",
-        "description": "Add a directed edge between two nodes in the knowledge graph.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "from_id":  {"type": "string"},
-                "to_id":    {"type": "string"},
-                "relation": {
-                    "type": "string",
-                    "enum": ["contains", "references", "cites", "related_to", "supersedes"],
-                },
-                "note": {"type": "string"},
-            },
-            "required": ["from_id", "to_id", "relation"],
-        },
-    },
-    {
-        "name": "web_search",
-        "description": "Search the web and return a summary of the top results.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query":       {"type": "string"},
-                "max_results": {"type": "integer", "default": 5},
-            },
-            "required": ["query"],
-        },
-    },
+    _fn("list_projects", "List all PRIME projects with their names, status, and counts.",
+        {"type": "object", "properties": {}, "required": []}),
+
+    _fn("read_project", "Get full details for a project: description, decisions, todos, concepts.",
+        {"type": "object",
+         "properties": {"project_id": {"type": "string", "description": "The project slug ID."}},
+         "required": ["project_id"]}),
+
+    _fn("read_resource", "Read the text content of a resource in the knowledge base.",
+        {"type": "object",
+         "properties": {"resource_id": {"type": "string"}},
+         "required": ["resource_id"]}),
+
+    _fn("write_resource", "Save a new resource (article, note, artifact, video summary) to the knowledge base.",
+        {"type": "object",
+         "properties": {
+             "title":       {"type": "string"},
+             "type":        {"type": "string", "enum": ["article", "note", "pdf", "video", "artifact"]},
+             "content":     {"type": "string", "description": "Markdown content to store."},
+             "description": {"type": "string"},
+             "project_ids": {"type": "array", "items": {"type": "string"}},
+             "tags":        {"type": "array", "items": {"type": "string"}},
+         },
+         "required": ["title", "type", "content"]}),
+
+    _fn("create_decision", "Record an architectural decision (ADR) in a project.",
+        {"type": "object",
+         "properties": {
+             "project_id":   {"type": "string"},
+             "title":        {"type": "string"},
+             "type":         {"type": "string", "enum": ["adr", "decision", "milestone", "note"]},
+             "context":      {"type": "string"},
+             "body":         {"type": "string"},
+             "consequences": {"type": "string"},
+             "alternatives": {
+                 "type": "array",
+                 "items": {"type": "object", "properties": {
+                     "title":  {"type": "string"},
+                     "reason": {"type": "string"},
+                 }},
+             },
+             "tags": {"type": "array", "items": {"type": "string"}},
+         },
+         "required": ["project_id", "title", "body"]}),
+
+    _fn("create_note", "Create a quick personal note and add it to the knowledge base.",
+        {"type": "object",
+         "properties": {
+             "title":       {"type": "string"},
+             "content":     {"type": "string"},
+             "project_ids": {"type": "array", "items": {"type": "string"}},
+             "tags":        {"type": "array", "items": {"type": "string"}},
+         },
+         "required": ["title", "content"]}),
+
+    _fn("link_resources", "Add a directed edge between two nodes in the knowledge graph.",
+        {"type": "object",
+         "properties": {
+             "from_id":  {"type": "string"},
+             "to_id":    {"type": "string"},
+             "relation": {"type": "string", "enum": ["contains", "references", "cites", "related_to", "supersedes"]},
+             "note":     {"type": "string"},
+         },
+         "required": ["from_id", "to_id", "relation"]}),
+
+    _fn("web_search", "Search the web and return a summary of the top results.",
+        {"type": "object",
+         "properties": {
+             "query":       {"type": "string"},
+             "max_results": {"type": "integer", "default": 5},
+         },
+         "required": ["query"]}),
 ]
+
+def _configure_litellm() -> None:
+    """Push provider keys into LiteLLM and suppress its verbose logging."""
+    import logging
+    logging.getLogger("LiteLLM").setLevel(logging.WARNING)
+    litellm.drop_params = True   # ignore unsupported params per model
+    if settings.anthropic_api_key:
+        os.environ.setdefault("ANTHROPIC_API_KEY", settings.anthropic_api_key)
+    if settings.openai_api_key:
+        os.environ.setdefault("OPENAI_API_KEY", settings.openai_api_key)
+    if settings.ollama_api_base:
+        os.environ.setdefault("OLLAMA_API_BASE", settings.ollama_api_base)
+
 
 # Default agents available without explicit registration
 _DEFAULT_AGENTS: list[Agent] = [
@@ -181,7 +164,6 @@ class AgentRuntime:
     def __init__(self, session_factory, graph_engine) -> None:
         self._session_factory = session_factory
         self._graph = graph_engine
-        self._client: anthropic.AsyncAnthropic | None = None
 
         # Agent registry (in-memory; default agents pre-loaded)
         self._agents: dict[str, Agent] = {a.id: a for a in _DEFAULT_AGENTS}
@@ -193,6 +175,9 @@ class AgentRuntime:
 
         # WebSocket broadcast callback — set by the WS router
         self._broadcast: Callable[[AgentEvent], None] | None = None
+
+        # Wire LiteLLM provider keys from settings so they're available globally
+        _configure_litellm()
 
     # ── Agent registry ──────────────────────────
 
@@ -208,18 +193,6 @@ class AgentRuntime:
 
     def set_broadcaster(self, fn: Callable[[AgentEvent], None]) -> None:
         self._broadcast = fn
-
-    @property
-    def _anthropic(self) -> anthropic.AsyncAnthropic:
-        if self._client is None:
-            key = settings.anthropic_api_key
-            if not key:
-                raise RuntimeError(
-                    "ANTHROPIC_API_KEY is not set. "
-                    "Agent runs require an API key — set it in .env."
-                )
-            self._client = anthropic.AsyncAnthropic(api_key=key)
-        return self._client
 
     @asynccontextmanager
     async def _store(self):
@@ -280,8 +253,8 @@ class AgentRuntime:
 
         await self._log(run.id, LogLevel.info, f"Starting task: {task.task}")
 
-        allowed = {t.value for t in agent.tools} if agent.tools else {s["name"] for s in TOOL_SCHEMAS}
-        tools = [s for s in TOOL_SCHEMAS if s["name"] in allowed]
+        allowed = {t.value for t in agent.tools} if agent.tools else {s["function"]["name"] for s in TOOL_SCHEMAS}
+        tools = [s for s in TOOL_SCHEMAS if s["function"]["name"] in allowed]
 
         user_msg = task.task
         if task.context:
@@ -289,8 +262,12 @@ class AgentRuntime:
         if task.project_id:
             user_msg += f"\n\nProject context ID: {task.project_id}"
 
-        messages: list[dict] = [{"role": "user", "content": user_msg}]
-        system = agent.effective_system_prompt()
+        # LiteLLM uses OpenAI message format — system goes in messages list
+        messages: list[dict] = [
+            {"role": "system",  "content": agent.effective_system_prompt()},
+            {"role": "user",    "content": user_msg},
+        ]
+        model = agent.model or settings.prime_model
 
         turns = 0
         final_text = ""
@@ -305,44 +282,41 @@ class AgentRuntime:
                         "progress": min(95, turns * (90 // agent.max_turns)),
                     })
 
-                response = await self._anthropic.messages.create(
-                    model=agent.model,
+                response = await litellm.acompletion(
+                    model=model,
                     max_tokens=agent.max_tokens,
-                    system=system,
                     tools=tools,
                     messages=messages,
                 )
 
-                turn_text = ""
-                tool_calls = []
-
-                for block in response.content:
-                    if block.type == "text":
-                        turn_text += block.text
-                        final_text += block.text + "\n"
-                    elif block.type == "tool_use":
-                        tool_calls.append(block)
+                msg = response.choices[0].message
+                turn_text   = msg.content or ""
+                tool_calls  = msg.tool_calls or []
+                finish      = response.choices[0].finish_reason
 
                 if turn_text:
+                    final_text += turn_text + "\n"
                     await self._log(run.id, LogLevel.info,
                                     turn_text[:200] + ("…" if len(turn_text) > 200 else ""))
 
-                messages.append({"role": "assistant", "content": response.content})
+                # Append assistant turn in OpenAI format
+                messages.append({"role": "assistant", "content": turn_text,
+                                  "tool_calls": [tc.model_dump() for tc in tool_calls] or None})
 
-                if response.stop_reason == "end_turn" and not tool_calls:
+                if finish == "stop" and not tool_calls:
                     await self._log(run.id, LogLevel.ok, "Agent finished.")
                     break
 
                 if tool_calls:
-                    tool_results = []
                     for call in tool_calls:
-                        result = await self._dispatch_tool(run, agent, call.name, call.input)
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": call.id,
-                            "content": json.dumps(result),
+                        fn_name = call.function.name
+                        fn_args = json.loads(call.function.arguments or "{}")
+                        result  = await self._dispatch_tool(run, agent, fn_name, fn_args)
+                        messages.append({
+                            "role":         "tool",
+                            "tool_call_id": call.id,
+                            "content":      json.dumps(result),
                         })
-                    messages.append({"role": "user", "content": tool_results})
 
             # Save final text as a knowledge base note
             if final_text.strip():
